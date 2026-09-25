@@ -25,6 +25,7 @@ Nach dem ersten Start speichert die App alles für den Offline-Betrieb, auch die
 
 ## 3. Was die App kann
 
+- **Startbildschirm** mit großen Kacheln für Dinge, Orte, Fällig und Mehr. Auf den Unterseiten gibt es unten ein Menü: antippen oder hochziehen zum Aufklappen, nach unten wischen zum Zuklappen.
 - **Gegenstände mit Foto erfassen.** Die Bilderkennung schlägt einen Namen vor. Sie läuft auf dem iPhone, ohne Internet und ohne KI-Dienst.
 - **Viele Fotos auf einmal:** Jedes Foto wird ein eigener Gegenstand. So erfasst du ein Regal in einem Rutsch.
 - **Räume › Möbel › Kisten › Fächer**, beliebig verschachtelt, mit Nummern wie K1 oder M2.
