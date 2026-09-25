@@ -2,7 +2,7 @@
 (function (W) {
   'use strict';
   var U = W.U, DB = W.DB, X = W.Export, $ = U.$, $$ = U.$$, esc = U.esc;
-  var APP_VERSION = '1.0.0';
+  var APP_VERSION = '1.1.0';
 
   var KIND = { moebel: 'Möbel', kiste: 'Kiste', fach: 'Fach', sonst: 'Sonstiges' };
   var KIND_PREFIX = { moebel: 'M', kiste: 'K', fach: 'F', sonst: 'S' };
@@ -178,12 +178,13 @@
   /* =========================================================
    * Zustand & Navigation
    * ========================================================= */
-  var S = { route: 'items', arg: null, q: '', room: prefs.room || 'all', status: 'all', sort: prefs.sort || 'new', selecting: false, selected: new Set(), ready: false };
-  var ROUTES = ['items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving'];
+  var S = { route: 'home', arg: null, q: '', room: prefs.room || 'all', status: 'all', sort: prefs.sort || 'new', selecting: false, selected: new Set(), ready: false };
+  var ROUTES = ['home', 'items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving'];
+  var TOP_ROUTES = ['items', 'places', 'due', 'more'];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ''), parts = h.split('/');
-    var r = parts[0] || 'items';
-    if (ROUTES.indexOf(r) < 0) r = 'items';
+    var r = parts[0] || 'home';
+    if (ROUTES.indexOf(r) < 0) r = 'home';
     S.route = r;
     S.arg = parts[1] ? decodeURIComponent(parts[1]) : null;
   }
@@ -191,6 +192,8 @@
   window.addEventListener('hashchange', function () {
     parseHash();
     closeAllSheets();
+    setDock(false);
+    if (S.route === 'home' && S.q) { S.q = ''; $('#q').value = ''; $('#qClear').hidden = true; }
     if (S.route !== 'items') exitSelect(true);
     render();
     window.scrollTo(0, 0);
@@ -212,26 +215,121 @@
   }
   function initials(name) { var w = String(name || '?').trim().split(/\s+/); return ((w[0] || '?')[0] + (w[1] ? w[1][0] : '')).toUpperCase(); }
 
-  var TITLES = { items: 'Wo ist was', places: 'Orte', due: 'Fällig', more: 'Mehr', sortout: 'Aussortieren', moving: 'Umzug' };
+  var TITLES = { home: 'Wo ist was', items: 'Dinge', places: 'Orte', due: 'Fällig', more: 'Mehr', sortout: 'Aussortieren', moving: 'Umzug' };
+  var NAV = [
+    { id: 'home', href: '#/', label: 'Start', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>' },
+    { id: 'items', href: '#/items', label: 'Dinge', icon: ICON.kiste },
+    { id: 'places', href: '#/places', label: 'Orte', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg>' },
+    { id: 'due', href: '#/due', label: 'Fällig', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>' },
+    { id: 'more', href: '#/more', label: 'Mehr', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>' }
+  ];
+  function navMeta(id, due) {
+    if (id === 'home') return 'Übersicht';
+    if (id === 'items') return U.plural(DB.items.length, 'Gegenstand', 'Gegenstände');
+    if (id === 'places') {
+      var n = DB.places.length;
+      return U.plural(M.rooms().length, 'Raum', 'Räume') + (n ? ' · ' + U.plural(n, 'Möbel/Kiste', 'Möbel/Kisten') : '');
+    }
+    if (id === 'due') return due.count ? due.count + ' fällig' : 'Alles erledigt';
+    return 'Sicherung, Berichte, Umzug';
+  }
+  function badgeText(n) { return n > 99 ? '99+' : String(n); }
+  var dockHTML = '';
   function updateChrome() {
     var r = S.route, title = TITLES[r] || 'Wo ist was';
     if (r === 'room') { var rm = S.arg === 'none' ? { name: 'Ohne Raum' } : M.room(S.arg); title = rm ? rm.name : 'Raum'; }
     if (r === 'place') { var p = M.place(S.arg); title = p ? p.name : 'Ort'; }
     $('#viewTitle').textContent = title;
-    document.title = r === 'items' ? 'Wo ist was' : title + ' – Wo ist was';
-    $('#backBtn').hidden = ['room', 'place', 'sortout', 'moving'].indexOf(r) < 0;
-    $('#searchWrap').hidden = r !== 'items';
+    document.title = r === 'home' ? 'Wo ist was' : title + ' – Wo ist was';
+    $('#backBtn').hidden = r === 'home';
+    $('#searchWrap').hidden = r !== 'items' && r !== 'home';
     var tab = r === 'room' || r === 'place' ? 'places' : (r === 'sortout' || r === 'moving') ? 'more' : r;
-    $$('.tab').forEach(function (a) { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-    $('#fab').hidden = S.selecting || ['items', 'places', 'room', 'place'].indexOf(r) < 0;
-    $('#tabbar').hidden = S.selecting;
+    var fab = $('#fab');
+    fab.hidden = S.selecting || ['items', 'places', 'room', 'place'].indexOf(r) < 0;
+    document.body.classList.toggle('has-fab', !fab.hidden);
+    $('#dock').hidden = S.selecting || r === 'home';
+    if (S.selecting) setDock(false);
     $('#selectBar').hidden = !S.selecting;
     var due = M.due();
-    var b = $('#dueBadge');
-    b.textContent = due.count > 99 ? '99+' : String(due.count);
-    b.hidden = !due.count;
+    // Menü zum Hochziehen
+    var html = NAV.map(function (n) {
+      var cur = n.id === tab;
+      return '<a class="dock-item" href="' + n.href + '" data-tab="' + n.id + '" style="--c:var(--c-' + n.id + ')"' + (cur ? ' aria-current="page"' : '') + '>' +
+        '<span class="nav-ic" aria-hidden="true">' + n.icon + '</span><span class="dock-item-txt"><b>' + esc(n.label) + '</b><small>' + esc(navMeta(n.id, due)) + '</small></span>' +
+        (n.id === 'due' && due.count ? '<b class="nav-badge">' + badgeText(due.count) + '</b>' : '') +
+        (cur ? '<span class="dock-here" aria-hidden="true">' + ICON.check + '</span>' : '') + '</a>';
+    }).join('');
+    if (html !== dockHTML) { dockHTML = html; $('#dockMenuIn').innerHTML = html; }
+    var curNav = NAV.filter(function (n) { return n.id === tab; })[0] || NAV[0];
+    $('#dockCur').textContent = curNav.label;
+    var ic = $('#dockIc');
+    ic.innerHTML = curNav.icon;
+    ic.style.setProperty('--c', 'var(--c-' + curNav.id + ')');
+    $('#dockDot').hidden = !due.count || tab === 'due';
     updateAppBadge(due.count);
   }
+
+  /* ---------- Menü zum Hochziehen (ersetzt die Tab-Leiste) ---------- */
+  var dock = $('#dock'), dockMenu = $('#dockMenu'), dockHandle = $('#dockHandle'), dockScrim = $('#dockScrim');
+  var dockOpen = false, dockDrag = null, dockDragged = false;
+  function dockMax() { return $('#dockMenuIn').offsetHeight; }
+  function setDock(open, animate) {
+    dockOpen = open;
+    dock.classList.toggle('instant', animate === false);
+    dock.classList.toggle('open', open);
+    document.body.classList.toggle('dock-open', open);
+    dockHandle.setAttribute('aria-expanded', String(open));
+    dockMenu.style.height = open ? dockMax() + 'px' : '0px';
+    dockMenu.inert = !open;
+    dockScrim.style.opacity = '';
+  }
+  dockHandle.addEventListener('click', function () { setDock(!dockOpen); });
+  dockScrim.addEventListener('click', function () { setDock(false); });
+  dockMenu.addEventListener('click', function (e) { if (e.target.closest('.dock-item')) setDock(false); });
+  // Mitziehen: Menü folgt dem Finger, beim Loslassen rastet es offen oder zu ein
+  dock.addEventListener('pointerdown', function (e) {
+    if (e.button > 0) return;
+    dockDragged = false;
+    var max = dockMax();
+    dockDrag = { id: e.pointerId, y0: e.clientY, h0: dockOpen ? max : 0, max: max, moved: false, y: e.clientY, t: e.timeStamp, v: 0 };
+  });
+  dock.addEventListener('pointermove', function (e) {
+    var d = dockDrag;
+    if (!d || e.pointerId !== d.id) return;
+    var dy = d.y0 - e.clientY;
+    if (!d.moved) {
+      if (Math.abs(dy) < 8) return;
+      d.moved = true;
+      dock.classList.add('dragging');
+      try { dock.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    }
+    var h = d.h0 + dy;
+    if (h > d.max) h = d.max + (h - d.max) * 0.2;
+    if (h < 0) h = 0;
+    dockMenu.style.height = h + 'px';
+    dockScrim.style.opacity = String(Math.min(1, h / (d.max || 1)));
+    document.body.classList.add('dock-open');
+    var dt = e.timeStamp - d.t;
+    if (dt > 0) d.v = (d.y - e.clientY) / dt;
+    d.y = e.clientY; d.t = e.timeStamp;
+  });
+  function endDockDrag(e) {
+    var d = dockDrag;
+    if (!d || e.pointerId !== d.id) return;
+    dockDrag = null;
+    if (!d.moved) return;
+    dockDragged = true;
+    dock.classList.remove('dragging');
+    var h = parseFloat(dockMenu.style.height) || 0;
+    setDock(Math.abs(d.v) > 0.3 ? d.v > 0 : h > d.max / 2);
+  }
+  dock.addEventListener('pointerup', endDockDrag);
+  dock.addEventListener('pointercancel', endDockDrag);
+  // Nach dem Ziehen keinen Klick auslösen
+  dock.addEventListener('click', function (e) { if (dockDragged) { dockDragged = false; e.preventDefault(); e.stopPropagation(); } }, true);
+  window.addEventListener('resize', function () { if (dockOpen) setDock(true, false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && dockOpen && !stack.length) setDock(false); });
+  dockMenu.inert = true;
 
   function render() {
     if (!S.ready) return;
@@ -336,6 +434,30 @@
   function storageBanner() {
     return DB.persistent ? '' : '<div class="banner warn"><p><strong>Speichern nicht möglich</strong>Dieser Browser erlaubt keinen Speicher (privates Surfen?). Deine Einträge gehen beim Schließen verloren.</p></div>';
   }
+
+  VIEWS.home = function () {
+    var h = installBanner() + storageBanner();
+    var due = M.due();
+    h += '<div class="home-grid">' + NAV.slice(1).map(function (n) {
+      return '<a class="nav-tile" href="' + n.href + '" style="--c:var(--c-' + n.id + ')">' +
+        '<span class="nav-ic" aria-hidden="true">' + n.icon + '</span>' +
+        (n.id === 'due' && due.count ? '<b class="nav-badge">' + badgeText(due.count) + '</b>' : '') +
+        '<span class="nav-tile-txt"><b>' + esc(n.label) + '</b><small>' + esc(navMeta(n.id, due)) + '</small></span></a>';
+    }).join('') + '</div>';
+    h += '<div class="home-actions">' +
+      '<button class="btn btn-primary" type="button" data-act="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Neu erfassen</button>' +
+      '<button class="btn" type="button" data-act="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 8h3v3H8zM13 13h3v3h-3z"/></svg>Etikett scannen</button></div>';
+    var recent = DB.items.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 8);
+    if (recent.length) {
+      h += '<div class="section-head"><h2>Zuletzt erfasst</h2><a class="linkish" href="#/items">Alle</a></div><div class="recent">' + recent.map(function (it) {
+        var ph = (it.photos || [])[0];
+        return '<button class="recent-item" type="button" data-item="' + esc(it.id) + '"><span class="recent-photo">' +
+          (ph ? imgTag(ph.t || ph.id, '', true) : '<span class="ph-empty" aria-hidden="true">' + esc(initials(it.name)) + '</span>') +
+          '</span><span class="recent-name">' + esc(it.name) + '</span></button>';
+      }).join('') + '</div>';
+    }
+    return h;
+  };
 
   VIEWS.items = function () {
     var h = installBanner() + storageBanner();
@@ -1935,7 +2057,9 @@
         DB.del('items', [it.id]).then(function () { DB.delBlobs(blobIdsOf(it)); U.toast('Aus dem Inventar entfernt'); });
       });
     },
-    'new-box': function () { openPlaceEditor(null, { kind: 'kiste', roomId: '' }); }
+    'new-box': function () { openPlaceEditor(null, { kind: 'kiste', roomId: '' }); },
+    'new': function () { openNewMenu(); },
+    'scan': function () { openScanner(); }
   };
   function presetFrom(el) {
     var p = {};
@@ -2000,6 +2124,7 @@
     var v = e.target.value;
     $('#qClear').hidden = !v;
     clearTimeout(qTimer);
+    if (S.route === 'home' && v.trim()) { S.q = v; go('items'); return; }
     qTimer = setTimeout(function () { S.q = v; render(); }, 150);
   });
   $('#q').addEventListener('keydown', function (e) { if (e.key === 'Enter') e.target.blur(); });
@@ -2012,9 +2137,11 @@
       if (p && p.parentId && M.place(p.parentId)) go('place/' + encodeURIComponent(p.parentId));
       else go('room/' + encodeURIComponent(p ? (M.placeRoomId(p) || 'none') : 'none'));
     } else if (S.route === 'room') go('places');
+    else if (TOP_ROUTES.indexOf(S.route) >= 0) go('');
     else go('more');
   });
-  $('#fab').addEventListener('click', function () {
+  $('#fab').addEventListener('click', openNewMenu);
+  function openNewMenu() {
     var preset = {};
     if (S.route === 'room') preset.roomId = S.arg === 'none' ? '' : S.arg;
     if (S.route === 'place' && M.place(S.arg)) { preset.placeId = S.arg; preset.roomId = M.placeRoomId(M.place(S.arg)); }
@@ -2025,7 +2152,7 @@
       { label: 'Möbel, Kiste oder Fach', meta: 'Zum Beispiel Regal, Schrank oder Umzugskiste', run: function () { openPlaceEditor(null, { roomId: preset.roomId || '', parentId: preset.placeId || '' }); } },
       { label: 'Raum', meta: 'Zum Beispiel Garage, Dachboden oder Auto', run: function () { openRoomEditor(null); } }
     ]);
-  });
+  }
 
   /* =========================================================
    * Start
