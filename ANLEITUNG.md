@@ -25,7 +25,12 @@ Nach dem ersten Start speichert die App alles für den Offline-Betrieb, auch die
 
 ## 3. Was die App kann
 
-- **Startbildschirm** mit großen Kacheln für Dinge, Orte, Fällig und Mehr. Auf den Unterseiten gibt es unten ein Menü: antippen oder hochziehen zum Aufklappen, nach unten wischen zum Zuklappen.
+- **Startbildschirm** mit großen Kacheln für Dinge, Orte, Fällig und Mehr, dazu Schnellaktionen, „Als Nächstes fällig“, Favoriten, zuletzt erfasst, Räume, Zahlen und Sicherung.
+- **Rundmenü:** Unten sitzt ein runder Knopf mit dem Symbol der aktuellen Seite. Antippen fächert die anderen Bereiche als Welle auf.
+- **Erinnerungen:** Wird etwas fällig, ploppt am runden Knopf eine kleine Glocke auf und ein kurzer Hinweis erscheint. Unter „Fällig“ nach links wischen = erledigt, nach rechts = später. Mit „Rückgängig“ holst du es zurück.
+- **Spracheingabe:** Mikrofon in der Suche („Wo ist das Ladekabel?“, „Leg die Bohrmaschine in die Garage“, „Milch ist leer“, „Erinnere mich morgen an …“) und „Einsprechen“ beim Erfassen. Die Erkennung läuft über Apple und braucht meist Internet.
+- **Favoriten und „Wo war es zuletzt?“** in der Ansicht jedes Gegenstands.
+- **Einstellungen** unter Mehr: Position und Namen im Rundmenü, Animationen, Töne mit eigener Lautstärke, Vibration, Farben, hell/dunkel, Startbildschirm und App-Sperre mit Code oder Face ID.
 - **Gegenstände mit Foto erfassen.** Die Bilderkennung schlägt einen Namen vor. Sie läuft auf dem iPhone, ohne Internet und ohne KI-Dienst.
 - **Viele Fotos auf einmal:** Jedes Foto wird ein eigener Gegenstand. So erfasst du ein Regal in einem Rutsch.
 - **Räume › Möbel › Kisten › Fächer**, beliebig verschachtelt, mit Nummern wie K1 oder M2.
