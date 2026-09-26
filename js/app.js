@@ -2,7 +2,7 @@
 (function (W) {
   'use strict';
   var U = W.U, DB = W.DB, X = W.Export, $ = U.$, $$ = U.$$, esc = U.esc;
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.2.1';
 
   var KIND = { moebel: 'Möbel', kiste: 'Kiste', fach: 'Fach', sonst: 'Sonstiges' };
   var KIND_PREFIX = { moebel: 'M', kiste: 'K', fach: 'F', sonst: 'S' };
@@ -2828,16 +2828,29 @@
     ]);
   }
 
-  /* ---------- Töne und Animation schon beim Berühren, damit es sich direkt anfühlt ---------- */
+  /* ---------- Töne und Animation beim Antippen ----------
+     Erst beim Loslassen, und nur wenn der Finger kaum bewegt wurde: wer nur scrollt, hört nichts. */
+  var tapCand = null;
   document.addEventListener('pointerdown', function (e) {
+    tapCand = null;
     var t = e.target;
     if (!t.closest || t.closest('#lock,#voice,.orb,.petal,.dn,.swipe,.range,.play,#nbub,#npill,#qMic')) return;
-    if (t.closest('.switch,.pseg button,.seg button,.swatches button')) { W.Sound.play('tick'); return; }
+    if (t.closest('.switch,.pseg button,.seg button,.swatches button')) { tapCand = { id: e.pointerId, x: e.clientX, y: e.clientY, snd: 'tick' }; return; }
     var hit = t.closest('.btn,.row,.chip,.card,.icon-btn,.qa,.rchip,.nav-tile,.recent-item,.fab,.linkish,.linkbtn,.tag,.dymo,.favbtn,.avoice,.nrow,.set-row,.mini-list .main');
     if (!hit) return;
-    W.Sound.play('tap');
     var ic = hit.matches('.nav-tile') ? $('.nav-ic', hit) : hit.matches('.qa') ? $('.qi', hit) : hit.matches('.fab') ? hit : hit.matches('.row') ? $('.ric', hit) : null;
-    if (ic) animIcon(ic, true);
+    tapCand = { id: e.pointerId, x: e.clientX, y: e.clientY, snd: 'tap', ic: ic };
+  }, true);
+  document.addEventListener('pointermove', function (e) {
+    if (tapCand && e.pointerId === tapCand.id && Math.abs(e.clientX - tapCand.x) + Math.abs(e.clientY - tapCand.y) > 10) tapCand = null;
+  }, true);
+  document.addEventListener('pointercancel', function () { tapCand = null; }, true);
+  window.addEventListener('scroll', function () { tapCand = null; }, { passive: true, capture: true });
+  document.addEventListener('pointerup', function (e) {
+    var c = tapCand; tapCand = null;
+    if (!c || e.pointerId !== c.id) return;
+    W.Sound.play(c.snd);
+    if (c.ic) animIcon(c.ic, true);
   }, true);
 
   /* =========================================================
