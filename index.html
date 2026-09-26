@@ -16,6 +16,10 @@
 <link rel="icon" type="image/png" href="icons/favicon.png">
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/app.css">
+<script>/* Design und Sperre schon vor dem ersten Bild setzen, damit nichts aufblitzt */
+try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = document.documentElement;
+  if (wp.look === 'dark' || wp.look === 'light') de.setAttribute('data-look', wp.look);
+  if (wp.lock && wp.lockHash) de.classList.add('is-locked'); } catch (e) { /* egal */ }</script>
 </head>
 <body>
 
@@ -34,26 +38,32 @@
     <label for="q" class="sr-only">Suchen oder fragen</label>
     <input id="q" type="search" placeholder="Frag z. B.: Wo ist das Ladekabel?" autocomplete="off" autocorrect="off" enterkeyhint="search">
     <button class="clear" id="qClear" type="button" aria-label="Suche leeren" hidden>×</button>
+    <button class="mic" id="qMic" type="button" aria-label="Spracheingabe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
   </div>
 </header>
 
 <main class="app" id="view" aria-live="polite"></main>
 
 <button class="fab" id="fab" type="button" aria-label="Neu">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><g class="p-plus"><path d="M12 5v14M5 12h14"/></g></svg>
 </button>
 
-<div class="dock-scrim" id="dockScrim" aria-hidden="true"></div>
-<nav class="dock" id="dock" aria-label="Bereiche" hidden>
-  <span class="dock-grip" aria-hidden="true"></span>
-  <div class="dock-menu" id="dockMenu"><div class="dock-menu-in" id="dockMenuIn"></div></div>
-  <button class="dock-handle" id="dockHandle" type="button" aria-expanded="false" aria-controls="dockMenu">
-    <span class="nav-ic" id="dockIc" aria-hidden="true"></span>
-    <span class="dock-label"><b id="dockCur">Dinge</b><small>Menü</small></span>
-    <b class="dock-dot" id="dockDot" hidden></b>
-    <svg class="dock-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
-  </button>
-</nav>
+<!-- Rundmenü: ein Knopf, die Bereiche fächern sich als Welle darum auf -->
+<div class="nav-scrim" id="navScrim" aria-hidden="true"></div>
+<nav id="petals" aria-label="Bereiche"></nav>
+<span class="sonar" id="sonar1" aria-hidden="true"></span><span class="sonar" id="sonar2" aria-hidden="true"></span>
+<button class="orb" id="orb" type="button" aria-expanded="false" aria-controls="petals" aria-label="Bereiche öffnen">
+  <span class="ic" id="orbIc" aria-hidden="true"></span>
+  <span class="x" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+</button>
+<button class="nbub" id="nbub" type="button" aria-label="Neue Erinnerungen ansehen">
+  <span id="nbubIc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><g class="bell"><path d="M6 9.5a6 6 0 0 1 12 0c0 5.3 2.2 7 2.2 7H3.8S6 14.8 6 9.5z"/><path d="M10 20a2 2 0 0 0 4 0"/></g></svg></span><b class="ncount" id="ncount" hidden></b>
+</button>
+<div class="npw"><div class="npill" id="npill" role="status">
+  <button class="npmain" id="npMain" type="button"><span class="nic" id="npIc"></span><span class="ntx"><b id="npT"></b><small id="npS"></small></span></button>
+  <button class="dn sz" type="button" id="npSnooze" aria-label="Später erinnern"></button><button class="dn" type="button" id="npDone" aria-label="Erledigt"></button>
+  <span class="nbar"></span>
+</div></div>
 
 <div class="selectbar" id="selectBar" hidden>
   <div class="selectbar-in">
@@ -74,6 +84,7 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
     <div class="sheet-head">
       <h2 id="dTitle"></h2>
+      <button class="favbtn" id="dFav" type="button" aria-pressed="false" aria-label="Favorit"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
       <button class="icon-btn" data-close type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="sheet-body" id="dBody"></div>
@@ -92,6 +103,7 @@
       <button class="icon-btn" data-close type="button" aria-label="Abbrechen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="sheet-body">
+      <button class="avoice" id="eVoice" type="button"><span class="ami"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></span><span><b>Einsprechen</b><small>z. B. „Akkuschrauber, Garage, Werkbank“</small></span></button>
       <div class="field">
         <span>Fotos</span>
         <div class="photos" id="ePhotos"></div>
@@ -348,6 +360,25 @@
   </div>
 </div>
 
+<div class="voice" id="voice" role="dialog" aria-label="Spracheingabe" hidden>
+  <div class="vcard">
+    <div class="vmic"><span class="vr"></span><span class="vr"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
+    <div class="vwave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <p class="vtext wait" id="vText" aria-live="polite">Ich höre zu …</p>
+    <p class="vhint" id="vHint"></p>
+    <div class="vbtns"><button class="vbtn" type="button" id="vRetry" hidden>Nochmal</button><button class="vbtn" type="button" id="vAlt" hidden>Tastatur</button><button class="vbtn" type="button" id="vCancel">Abbrechen</button></div>
+  </div>
+</div>
+
+<div class="lock" id="lock" hidden>
+  <div class="lk-top"><span class="lk-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg></span><b id="lkT"></b><small id="lkS"></small><div class="lk-dots" id="lkDots"><i></i><i></i><i></i><i></i></div></div>
+  <div class="lk-pad" id="lkPad"></div>
+  <button class="lk-cancel" type="button" id="lkCancel">Abbrechen</button>
+  <div class="faceid" aria-hidden="true"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g class="scan"><path class="fc" d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path class="fc" d="M9 9v1.5M15 9v1.5M12 9v4h-1M9.5 16a4 4 0 0 0 5 0"/></g><path class="ok" d="m6 12.5 4 4L18 8"/></svg></div></div>
+</div>
+
+<label id="hapL" aria-hidden="true"><input type="checkbox" switch tabindex="-1"></label>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastMsg"></span><button type="button" id="toastBtn" hidden></button></div>
 
 <input id="restoreInput" type="file" accept=".zip,.json,application/zip,application/json" class="sr-only" tabindex="-1">
@@ -358,6 +389,9 @@
 <script src="js/recognize.js"></script>
 <script src="js/exporters.js"></script>
 <script src="js/scanner.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/lock.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

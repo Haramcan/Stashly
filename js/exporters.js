@@ -34,7 +34,9 @@
   X.backup = function (onProgress) {
     return U.loadScript('lib/jszip.min.js').then(function () {
       var zip = new window.JSZip();
-      var data = { app: 'wo-ist-was', version: 1, exportedAt: new Date().toISOString(), rooms: DB.rooms, places: DB.places, items: DB.items, blobs: {} };
+      var data = { app: 'wo-ist-was', version: 1, exportedAt: new Date().toISOString(), rooms: DB.rooms, places: DB.places, items: DB.items, blobs: {},
+        // Eigene Erinnerungen und was erledigt oder verschoben ist
+        meta: { reminders: DB.meta.reminders || [], dueDone: DB.meta.dueDone || {}, dueSnooze: DB.meta.dueSnooze || {} } };
       var ids = referencedBlobs(), i = 0;
       function next() {
         if (i >= ids.length) return Promise.resolve();
@@ -115,6 +117,17 @@
         }).then(next);
       }
       return next();
+    }).then(function () {
+      var m = parsed.data && parsed.data.meta;
+      if (!m || typeof m !== 'object') return;
+      var keep = mode === 'replace' ? { reminders: [], dueDone: {}, dueSnooze: {} } : { reminders: DB.meta.reminders || [], dueDone: DB.meta.dueDone || {}, dueSnooze: DB.meta.dueSnooze || {} };
+      var ids = {}; keep.reminders.forEach(function (r) { ids[r.id] = 1; });
+      var rems = keep.reminders.concat(arr(m.reminders).filter(function (r) { return !ids[r.id]; }));
+      return Promise.all([
+        DB.setMeta('reminders', rems),
+        DB.setMeta('dueDone', Object.assign({}, keep.dueDone, m.dueDone || {})),
+        DB.setMeta('dueSnooze', Object.assign({}, keep.dueSnooze, m.dueSnooze || {}))
+      ]);
     }).then(function () {
       return DB.setMeta('seeded', true);
     }).then(function () {
