@@ -853,6 +853,9 @@
       var inner = '<span class="row-txt"><span class="row-name">' + esc(title) + '</span><span class="row-meta">' + esc(meta) + '</span></span>' + ICON.chev;
       return href ? '<a class="row" href="' + href + '">' + inner + '</a>' : '<button class="row" type="button" data-act="' + act + '">' + inner + '</button>';
     }
+    h += '<div class="sub-head">Privat</div><div class="menu-list">' +
+      row('vault', 'Archiv & Tresor', 'Dinge wegschließen, Fotos, Dokumente und Passwörter – verschlüsselt und nur auf diesem Gerät') +
+      '</div>';
     h += '<div class="sub-head">Werkzeuge</div><div class="menu-list">' +
       row('', 'Aussortieren', so.length ? U.plural(so.length, 'Sache', 'Sachen') + (soValue ? ' · ' + U.money(soValue) + ' möglicher Erlös' : '') : 'Dinge zum Verkaufen, Verschenken oder Entsorgen sammeln', '#/sortout') +
       row('', 'Umzug', boxes.length ? U.plural(boxes.length, 'Kiste', 'Kisten') + ' · ' + unpacked + ' ausgepackt' : 'Kisten nummerieren, Zielraum festlegen, abhaken', '#/moving') +
@@ -2565,6 +2568,7 @@
     'cal-new': function () { doCalendar(true); },
     'cal-all': function () { doCalendar(false); },
     'badge': enableBadge,
+    'vault': function () { if (W.VaultUI) W.VaultUI.open(); },
     'backup': doBackup,
     'restore': function () { $('#restoreInput').click(); },
     'csv': doCsv,
@@ -2834,7 +2838,7 @@
   document.addEventListener('pointerdown', function (e) {
     tapCand = null;
     var t = e.target;
-    if (!t.closest || t.closest('#lock,#voice,.orb,.petal,.dn,.swipe,.range,.play,#nbub,#npill,#qMic')) return;
+    if (!t.closest || t.closest('#lock,#voice,#vaultui,.orb,.petal,.dn,.swipe,.range,.play,#nbub,#npill,#qMic')) return;
     if (t.closest('.switch,.pseg button,.seg button,.swatches button')) { tapCand = { id: e.pointerId, x: e.clientX, y: e.clientY, snd: 'tick' }; return; }
     var hit = t.closest('.btn,.row,.chip,.card,.icon-btn,.qa,.rchip,.nav-tile,.recent-item,.fab,.linkish,.linkbtn,.tag,.dymo,.favbtn,.avoice,.nrow,.set-row,.mini-list .main');
     if (!hit) return;

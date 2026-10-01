@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/splash.css">
+<link rel="stylesheet" href="css/vault.css">
 <script>/* Design und Sperre schon vor dem ersten Bild setzen, damit nichts aufblitzt */
 try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = document.documentElement;
   if (wp.look === 'dark' || wp.look === 'light') de.setAttribute('data-look', wp.look);
@@ -416,6 +417,9 @@ try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = docum
 <script src="js/sound.js"></script>
 <script src="js/voice.js"></script>
 <script src="js/lock.js"></script>
+<script src="js/vault-crypto.js"></script>
+<script src="js/vault-store.js"></script>
+<script src="js/vault-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
