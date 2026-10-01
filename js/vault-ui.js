@@ -666,8 +666,20 @@
      Muss direkt aus einem Antippen heraus aufgerufen werden, sonst blockt iOS die Abfrage. */
   function faceVerify() {
     var id = V.opts().faceCred;
-    if (!id || !L.verifyFaceWith) return Promise.reject(new Error('reenroll'));
+    if (!L.verifyFaceWith || !L.enrollFace) return Promise.reject(new Error('unsupported'));
+    // Noch kein eigener Tresor-Passkey (Tresor von vor dem Update): jetzt anlegen. Das Anlegen
+    // verlangt selbst Face ID, prüft also genauso. Danach öffnet sich der Tresor direkt.
+    if (!id) return L.enrollFace('Stashly Tresor').then(function (nid) { return V.setOpts({ faceCred: nid }); });
     return L.verifyFaceWith(id);
+  }
+  // Passkey fehlt oder ist kaputt: neu einrichten (aus einem Antippen heraus) und dann öffnen
+  function faceRepair(wantReal) {
+    if (st.busy || !L.enrollFace) return;
+    st.busy = true;
+    L.enrollFace('Stashly Tresor').then(function (nid) { return V.setOpts({ faceCred: nid }); })
+      .then(function () { return V.faceOpen(wantReal); })
+      .then(function (r) { st.busy = false; if (r.decoy) V.addLog('Tarn-Tresor mit Face ID geöffnet', false); spinOpen(openVaultHome); },
+        function () { st.busy = false; toast('Face ID ließ sich nicht einrichten. Gib deinen Code ein.'); });
   }
   function faceEnroll(done) {
     if (!L.enrollFace) { toast('Face ID geht hier nicht.'); return; }
@@ -691,10 +703,13 @@
       spinOpen(openVaultHome);
     }, function (e) {
       st.busy = false; FID.classList.remove('on', 'done');
-      var m = e && e.message;
-      toast(m === 'reenroll' ? 'Schalte Face ID in den Tresor-Einstellungen einmal aus und wieder an.'
-        : /Tarn-Code/.test(m || '') ? 'Öffne den Tarn-Tresor einmal mit dem Tarn-Code, danach klappt Face ID.'
-        : 'Face ID hat nicht geklappt. Gib deinen Code ein.');
+      var m = (e && e.message) || '', n = (e && e.name) || '';
+      if (/Tarn-Code/.test(m)) toast('Öffne den Tarn-Tresor einmal mit dem Tarn-Code, danach klappt Face ID.');
+      else if (m === 'unsupported') toast('Face ID geht in diesem Browser nicht. Gib deinen Code ein.');
+      else if (/nicht eingerichtet/.test(m)) toast('Face ID ist für diesen Tresor noch nicht eingerichtet. Öffne ihn mit dem Code und schalte Face ID in den Einstellungen an.');
+      // Abgebrochen oder Passkey nicht gefunden: Neu-Einrichten anbieten (Antippen = erlaubte Geste für iOS)
+      else toast(n === 'NotAllowedError' || n === 'InvalidStateError' ? 'Face ID hat nicht geklappt.' : 'Face ID hat nicht geklappt (' + (n || m || 'unbekannt') + ').',
+        { action: 'Neu einrichten', ms: 7000, onAction: function () { faceRepair(wantReal); } });
     });
   }
 
@@ -960,6 +975,7 @@
   // Nach Zeit im Hintergrund wieder sperren
   document.addEventListener('visibilitychange', function () {
     if (!UI.isOpen()) return;
+    if (L.authBusy && L.authBusy()) { UI._hidAt = 0; return; } // nur die Face-ID-Abfrage von iOS
     if (document.visibilityState === 'hidden') { UI._hidAt = Date.now(); return; }
     if (!UI._hidAt || !V.isOpen()) return;
     var mins = +(V.opts().lockAfter || 0);
