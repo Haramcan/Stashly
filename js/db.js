@@ -151,6 +151,23 @@
     return tx(['meta'], 'readwrite', function (t) { t.objectStore('meta').put({ id: key, value: value }); });
   };
 
+  // Wie clearAll, aber der Tresor bleibt: verschlüsselte Dateien (venc:*) und Tresor-Einstellungen (vault.*)
+  function isVaultKey(k) { k = String(k); return k.indexOf('venc:') === 0 || k.indexOf('vault.') === 0; }
+  D.clearApp = function () {
+    urlCache.forEach(function (u) { URL.revokeObjectURL(u); });
+    urlCache.clear();
+    Array.from(memBlobs.keys()).forEach(function (k) { if (!isVaultKey(k)) memBlobs.delete(k); });
+    var keepMeta = {};
+    Object.keys(D.meta).forEach(function (k) { if (isVaultKey(k)) keepMeta[k] = D.meta[k]; });
+    var p = idb ? D.blobKeys().then(function (keys) {
+      return tx(['rooms', 'places', 'items', 'blobs', 'meta'], 'readwrite', function (t) {
+        ['rooms', 'places', 'items'].forEach(function (n) { t.objectStore(n).clear(); });
+        var b = t.objectStore('blobs'); keys.forEach(function (k) { if (!isVaultKey(k)) b.delete(k); });
+        var m = t.objectStore('meta'); Object.keys(D.meta).forEach(function (k) { if (!isVaultKey(k)) m.delete(k); });
+      });
+    }) : Promise.resolve();
+    return p.then(function () { D.rooms = []; D.places = []; D.items = []; D.meta = keepMeta; emit(); });
+  };
   D.clearAll = function () {
     urlCache.forEach(function (u) { URL.revokeObjectURL(u); });
     urlCache.clear(); memBlobs.clear();

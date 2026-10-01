@@ -1,18 +1,19 @@
 /* Wo ist was - Service Worker: macht die App offline nutzbar. Automatisch erzeugt von tools/build-sw.ps1 */
-const CACHE = 'wiw-38e17a3e9dd8';
+const CACHE = 'wiw-201ec177fb58';
 const ASSETS = [
   './',
   './css/app.css',
   './css/fonts.css',
   './css/splash.css',
-  './fonts/BricolageGrotesque-600-800-latin.woff2',
+  './css/vault.css',
   './fonts/BricolageGrotesque-600-800-latin-ext.woff2',
-  './fonts/Figtree-400-700-latin.woff2',
+  './fonts/BricolageGrotesque-600-800-latin.woff2',
   './fonts/Figtree-400-700-latin-ext.woff2',
-  './fonts/IBMPlexMono-500-latin.woff2',
+  './fonts/Figtree-400-700-latin.woff2',
   './fonts/IBMPlexMono-500-latin-ext.woff2',
-  './fonts/IBMPlexMono-600-latin.woff2',
+  './fonts/IBMPlexMono-500-latin.woff2',
   './fonts/IBMPlexMono-600-latin-ext.woff2',
+  './fonts/IBMPlexMono-600-latin.woff2',
   './icons/apple-touch-icon.png',
   './icons/favicon.png',
   './icons/icon-192.png',

@@ -284,6 +284,7 @@ button.tag{cursor:pointer}
 .sheet-head{display:flex;align-items:center;gap:8px;padding:14px 10px 10px 20px;border-bottom:1px solid var(--line)}
 .sheet-head h2{margin:0;flex:1;font-family:var(--f-display);font-size:20px;font-weight:800;letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
 .sheet-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px 18px 20px;display:grid;gap:14px;align-content:start;-webkit-overflow-scrolling:touch}
+.sheet-body:last-child{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .sheet-foot{display:flex;gap:10px;align-items:center;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);flex-wrap:wrap}
 .sheet-foot .btn{flex:1 1 auto}
 .sheet-foot .grow{flex:2 1 auto}
@@ -692,7 +693,7 @@ a.set-row{text-decoration:none;color:var(--ink)}
   background:radial-gradient(120% 70% at 20% 0%,color-mix(in srgb,var(--accent) 35%,transparent),transparent 60%),radial-gradient(90% 60% at 100% 100%,color-mix(in srgb,var(--c-places) 30%,transparent),transparent 60%),var(--bg);
   transition:opacity .35s var(--ease),transform .45s var(--ease)}
 html.is-locked #lock[hidden]{display:grid!important}
-html.is-locked body>:not(#lock):not(#toast):not(#startsplash):not(script){visibility:hidden}
+html.is-locked body>:not(#lock):not(#startsplash):not(script){visibility:hidden}
 .lock.leaving{opacity:0;transform:scale(1.08)}
 .lk-top{display:grid;justify-items:center;gap:8px;text-align:center;align-self:center}
 .lk-ic{width:64px;height:64px;border-radius:20px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;box-shadow:var(--glass-shadow);margin-bottom:6px}

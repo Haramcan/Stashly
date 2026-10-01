@@ -36,7 +36,11 @@
       var zip = new window.JSZip();
       var data = { app: 'wo-ist-was', version: 1, exportedAt: new Date().toISOString(), rooms: DB.rooms, places: DB.places, items: DB.items, blobs: {},
         // Eigene Erinnerungen und was erledigt oder verschoben ist
-        meta: { reminders: DB.meta.reminders || [], dueDone: DB.meta.dueDone || {}, dueSnooze: DB.meta.dueSnooze || {} } };
+        meta: { reminders: DB.meta.reminders || [], dueDone: DB.meta.dueDone || {}, dueSnooze: DB.meta.dueSnooze || {}, dueSeen: DB.meta.dueSeen || [], icsDone: DB.meta.icsDone || {} } };
+      // Tresor: nur verschlüsselte Daten, ohne Geräteschlüssel. Öffnen geht nur mit Code oder Wiederherstellungsschlüssel.
+      var vm = W.Vault && W.Vault.exportMeta ? W.Vault.exportMeta() : null;
+      var vaultKeys = vm ? W.Vault.blobKeysEnc() : Promise.resolve([]);
+      if (vm) data.vault = vm;
       var ids = referencedBlobs(), i = 0;
       function next() {
         if (i >= ids.length) return Promise.resolve();
@@ -47,7 +51,15 @@
           return next();
         });
       }
-      return next().then(function () {
+      return next().then(function () { return vaultKeys; }).then(function (keys) {
+        var j = 0;
+        function nextV() {
+          if (j >= keys.length) return Promise.resolve();
+          var k = keys[j++];
+          return DB.getBlob(k).then(function (b) { if (b) zip.file('vault/' + k.slice(5), b); return nextV(); });
+        }
+        return nextV();
+      }).then(function () {
         zip.file('data.json', JSON.stringify(data));
         return zip.generateAsync({ type: 'blob', mimeType: 'application/zip', compression: 'STORE' });
       });
@@ -99,20 +111,31 @@
   X.restore = function (parsed, mode, onProgress) {
     var d = parsed.kind === 'legacy' ? fromLegacy(parsed.data, mode === 'replace') : { rooms: arr(parsed.data.rooms), places: arr(parsed.data.places), items: arr(parsed.data.items) };
     var blobTypes = (parsed.data && parsed.data.blobs) || {};
-    var start = mode === 'replace' ? DB.clearAll() : Promise.resolve();
+    // „Alles ersetzen“ lässt den Tresor auf diesem Gerät stehen
+    var start = mode === 'replace' ? DB.clearApp() : Promise.resolve();
+    var vaultState = 'none';
     return start.then(function () {
       return DB.write({ rooms: { put: d.rooms }, places: { put: d.places }, items: { put: d.items } });
     }).then(function () {
       if (parsed.kind !== 'zip') return;
       var files = [];
       parsed.zip.folder('blobs').forEach(function (rel, f) { if (!f.dir) files.push({ id: rel, f: f }); });
+      // Tresor aus der Sicherung nur übernehmen, wenn hier noch keiner eingerichtet ist
+      var vm = parsed.data && parsed.data.vault;
+      if (vm && W.Vault) {
+        if (W.Vault.configured()) vaultState = 'kept';
+        else {
+          vaultState = 'restored';
+          parsed.zip.folder('vault').forEach(function (rel, f) { if (!f.dir) files.push({ id: 'venc:' + rel, f: f, enc: true }); });
+        }
+      }
       var i = 0;
       function next() {
         if (i >= files.length) return Promise.resolve();
         var e = files[i++];
         if (onProgress) onProgress(i, files.length);
         return e.f.async('blob').then(function (b) {
-          var typed = new Blob([b], { type: blobTypes[e.id] || 'image/jpeg' });
+          var typed = new Blob([b], { type: e.enc ? 'application/x-wiw-enc' : (blobTypes[e.id] || 'image/jpeg') });
           return DB.putBlob(e.id, typed);
         }).then(next);
       }
@@ -123,15 +146,20 @@
       var keep = mode === 'replace' ? { reminders: [], dueDone: {}, dueSnooze: {} } : { reminders: DB.meta.reminders || [], dueDone: DB.meta.dueDone || {}, dueSnooze: DB.meta.dueSnooze || {} };
       var ids = {}; keep.reminders.forEach(function (r) { ids[r.id] = 1; });
       var rems = keep.reminders.concat(arr(m.reminders).filter(function (r) { return !ids[r.id]; }));
+      var seen = (mode === 'replace' ? [] : (DB.meta.dueSeen || [])).concat(Array.isArray(m.dueSeen) ? m.dueSeen : []);
       return Promise.all([
         DB.setMeta('reminders', rems),
         DB.setMeta('dueDone', Object.assign({}, keep.dueDone, m.dueDone || {})),
-        DB.setMeta('dueSnooze', Object.assign({}, keep.dueSnooze, m.dueSnooze || {}))
+        DB.setMeta('dueSnooze', Object.assign({}, keep.dueSnooze, m.dueSnooze || {})),
+        DB.setMeta('dueSeen', seen.filter(function (k, i) { return seen.indexOf(k) === i; })),
+        DB.setMeta('icsDone', Object.assign({}, mode === 'replace' ? {} : (DB.meta.icsDone || {}), m.icsDone || {}))
       ]);
+    }).then(function () {
+      if (vaultState === 'restored') return W.Vault.importMeta(parsed.data.vault);
     }).then(function () {
       return DB.setMeta('seeded', true);
     }).then(function () {
-      return { rooms: d.rooms.length, places: d.places.length, items: d.items.length };
+      return { rooms: d.rooms.length, places: d.places.length, items: d.items.length, vault: vaultState };
     });
   };
 
@@ -313,6 +341,7 @@
   X.icsEvents = function () {
     var m = M(), ev = [];
     DB.items.forEach(function (it) {
+      if (it.archived) return;
       var where = m.locText(it);
       if (it.expiry && U.daysUntil(it.expiry) >= 0) {
         ev.push({ uid: 'mhd-' + it.id + '-' + it.expiry, date: it.expiry, title: 'Läuft ab: ' + it.name, desc: where, alarms: ['-P1DT15H', 'PT9H'] });

@@ -430,7 +430,7 @@
       '<button type="button" class="srow" data-a="renewkey"><span class="fl"><b>Wiederherstellungsschlüssel neu erstellen</b><small>Der alte gilt danach nicht mehr</small></span>' + ic('chev') + '</button>' +
       (V.isDecoy() ? '' : '<button type="button" class="srow" data-a="log"><span class="fl"><b>Einbruch-Protokoll</b><small>' + pl(V.log().length, 'Eintrag', 'Einträge') + '</small></span>' + ic('chev') + '</button>' +
         '<button type="button" class="srow" data-a="emergency"><span class="fl"><b>Notfall-Blatt</b><small>Zum Ausdrucken für Familie oder Partner</small></span>' + ic('chev') + '</button>') + '</div>' +
-      '<div class="grp" style="margin-top:16px"><button type="button" class="srow dang" data-a="wipe"><span class="fl"><b>' + (V.isDecoy() ? 'Tarn-Tresor leeren' : 'Tresor löschen') + '</b><small>Löscht alles darin, nach einer Rückfrage</small></span></button></div>' };
+      '<div class="grp" style="margin-top:16px"><button type="button" class="srow dang" data-a="wipe"><span class="fl"><b>Tresor löschen</b><small>Löscht alles darin, nach einer Rückfrage</small></span></button></div>' };
   };
   S.tarn = function () {
     var o = V.opts(), has = V.hasDecoy();
@@ -518,28 +518,32 @@
   function importItem(pend) {
     var snap = pend.importItem, id = U.uid('vi');
     var item = { id: id, n: snap.name, place: snap.place || '', note: snap.note || '', c: pickColor() };
+    if (snap.raw) item.app = snap.raw; // vollständiger Stand aus der App, verschlüsselt mit abgelegt
     var photos = (snap.photoIds || []), docs = (snap.docs || []);
-    var chain = Promise.resolve();
+    var chain = Promise.resolve(), vd = D(), s0 = V.session(), written = [], newFiles = [];
+    function same() { if (V.session() !== s0 || V.data() !== vd) throw new Error('switched'); }
     photos.forEach(function (p, i) {
-      chain = chain.then(function () { return DB.getBlob(p.id); }).then(function (blob) {
-        if (!blob) return; var fid = U.uid('vf');
-        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'photo', n: snap.name + (photos.length > 1 ? ' ' + (i + 1) : ''), size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      chain = chain.then(function () { same(); return DB.getBlob(p.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf'); same(); written.push(fid);
+        return V.putFile(fid, blob).then(function () { newFiles.push({ id: fid, k: 'photo', n: snap.name + (photos.length > 1 ? ' ' + (i + 1) : ''), size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
       });
     });
     docs.forEach(function (d) {
-      chain = chain.then(function () { return DB.getBlob(d.id); }).then(function (blob) {
-        if (!blob) return; var fid = U.uid('vf');
-        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'doc', n: d.name, size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      chain = chain.then(function () { same(); return DB.getBlob(d.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf'); same(); written.push(fid);
+        return V.putFile(fid, blob).then(function () { newFiles.push({ id: fid, k: 'doc', n: d.name, size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
       });
     });
     chain.then(function () {
-      D().items.unshift(item);
+      same();
+      newFiles.reverse().forEach(function (f) { vd.files.unshift(f); });
+      vd.items.unshift(item);
       return V.save();
     }).then(function () {
       if (pend.onImported) try { pend.onImported(); } catch (e) {}
       loadFileURLs(); render();
       toast('„' + snap.name + '“ liegt jetzt verschlüsselt im Tresor');
-    });
+    }, function () { abortWrites(written); }); // Original bleibt dann in der App
   }
   // Datei-URLs für Vorschaubilder nachladen (entschlüsselt)
   function loadFileURLs() {
@@ -605,17 +609,31 @@
       setTimeout(render, 140); return;
     }
     if (code !== st.first) { badCode('Die Codes waren verschieden. Bitte neu festlegen.'); return; }
-    st.entry = '';
+    st.entry = ''; st.busy = true;
+    var mode = st.codeMode;
+    // Ein Code darf nie beide Tresore öffnen, sonst öffnet der Tarn-Code den echten Tresor
+    var clash = mode === 'setup' ? Promise.resolve(false) : V.codeOwner(code).then(function (owner) {
+      if (!owner) return false;
+      if (mode === 'tarn') return true;
+      return owner !== (V.isDecoy() ? 'decoy' : 'real');
+    });
+    clash.then(function (bad) {
+      if (bad) { st.busy = false; badCode('Diesen Code kannst du nicht nehmen. Bitte einen anderen.'); return; }
+      saveNewCode(code);
+    });
+  }
+  function saveNewCode(code) {
+    function done() { st.busy = false; }
     if (st.codeMode === 'setup') {
-      V.setup(code).then(function (rk) { st.recKey = rk; st.recMode = 'show'; st.wrote = false; go('recovery'); });
+      V.setup(code).then(function (rk) { done(); st.recKey = rk; st.recMode = 'show'; st.wrote = false; go('recovery'); });
     } else if (st.codeMode === 'change') {
-      V.changeCode(code).then(function () { popTo('settings'); toast('Neuer Tresor-Code gespeichert'); });
+      V.changeCode(code).then(function () { done(); popTo('settings'); toast('Neuer Tresor-Code gespeichert'); });
     } else if (st.codeMode === 'tarn') {
       var mode = V.opts().tarnMode || 'code';
-      V.setupDecoy(code, mode).then(function () { popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
+      V.setupDecoy(code, mode).then(function () { done(); popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
     } else if (st.codeMode === 'reset') {
-      V.changeCode(code).then(function () { openVaultHome(); toast('Neuer Code gespeichert'); });
-    }
+      V.changeCode(code).then(function () { done(); openVaultHome(); toast('Neuer Code gespeichert'); });
+    } else done();
   }
 
   function popTo(screen) {
@@ -764,7 +782,7 @@
       case 'editpw': var pe = byId(D().passwords, st.pwId); st.editId = pe.id; st.draft = { n: pe.n, url: pe.url || '', u: pe.u || '', pw: pe.pw, note: pe.note || '', totp: pe.totp || '', len: Math.max(8, Math.min(40, (pe.pw || '').length || 20)), up: true, dig: true, sym: true, easy: false }; go('pwNew'); break;
       case 'roll': roll(); break;
       case 'savepw': savePw(); break;
-      case 'reveal': st.show = !st.show; render(); clearTimeout(revealT); if (st.show) revealT = setTimeout(function () { if (st.show) { st.show = false; if (st.screen === 'pwDetail') render(); } }, 30000); break;
+      case 'reveal': st.show = !st.show; render(); clearTimeout(revealT); if (st.show) revealT = setTimeout(function () { if (st.show && V.isOpen()) { st.show = false; if (st.screen === 'pwDetail') render(); } }, 30000); break;
       case 'delpw': delArmed(function () { var arr = D().passwords, p = byId(arr, st.pwId); arr.splice(arr.indexOf(p), 1); save(); back(); toast('Gelöscht'); }); break;
       case 'newnote': st.neditId = null; st.ndraft = { tpl: null, n: '', v: [] }; go('noteNew'); break;
       case 'editnote': var ne = byId(D().notes, st.nid); st.neditId = ne.id; st.ndraft = { tpl: ne.tpl, n: ne.n, v: ne.v.slice() }; go('noteNew'); break;
@@ -819,17 +837,24 @@
   function addPickedFiles(fileList) {
     var list = Array.prototype.slice.call(fileList || []); if (!list.length) return;
     var today = new Date().toLocaleDateString('de-DE');
-    var chain = Promise.resolve(), added = 0;
+    var chain = Promise.resolve(), added = 0, d = D(), s0 = V.session(), written = [];
+    function same() { if (V.session() !== s0 || V.data() !== d) throw new Error('switched'); }
     list.forEach(function (file, i) {
       var isImg = /^image\//.test(file.type);
       var id = U.uid('vf');
       var meta = { id: id, k: isImg ? 'photo' : 'doc', n: file.name || (isImg ? 'Foto vom ' + today : 'Datei'), size: file.size, mime: file.type, d: 'gerade eben', fo: st.folder || null, hasBlob: true };
-      chain = chain.then(function () { return V.putFile(id, file); }).then(function () {
-        D().files.unshift(meta); added++;
-        return V.getFileURL(id, file.type).then(function (u) { meta.url = u; }).catch(function () {});
+      chain = chain.then(function () { same(); written.push(id); return V.putFile(id, file); }).then(function () {
+        same(); d.files.unshift(meta); added++;
+        return V.getFileURL(id, file.type).then(function (u) { if (u) meta.url = u; }).catch(function () {});
       });
     });
-    chain.then(function () { return V.save(); }).then(function () { st.tab = 'files'; st.ff = 'all'; render(); toast(pl(added, 'Datei', 'Dateien') + ' verschlüsselt gespeichert'); });
+    chain.then(function () { same(); return V.save(); }).then(function () { st.tab = 'files'; st.ff = 'all'; render(); toast(pl(added, 'Datei', 'Dateien') + ' verschlüsselt gespeichert'); },
+      function () { abortWrites(written); });
+  }
+  // Ein Ablauf wurde unterbrochen (gesperrt oder gewechselt): schon geschriebene Dateien wieder entfernen
+  function abortWrites(ids) {
+    if (ids.length) DB.delBlobs(ids.map(function (x) { return 'venc:' + x; })).catch(function () {});
+    toast('Abgebrochen. Es wurde nichts gespeichert.');
   }
   function fileShare() {
     var f = byId(D().files, st.fid);
@@ -853,16 +878,23 @@
   function quickSwitch() {
     if (!V.hasDecoy()) { toast('Kein Tarn-Tresor eingerichtet'); return; }
     if (!V.isDecoy()) { V.openDecoyDirect().then(function () { openVaultHome(); }, function () { toast('Tarn-Tresor braucht den Tarn-Code'); }); }
-    else { V.lock(); st.screen = 'lock'; st.entry = ''; hist = []; render(); }
+    else relock();
+  }
+  // Alles Entschlüsselte aus Bildschirm und Zwischenspeicher entfernen
+  function forget() {
+    V.lock();
+    clearTimeout(revealT);
+    totpCache = {};
+    if (SCR) SCR.innerHTML = '';
+    reset();
   }
   function relock() {
-    V.lock();
-    st.screen = V.configured() ? 'lock' : 'intro'; st.entry = ''; hist = []; render();
+    forget();
+    st.screen = V.configured() ? 'lock' : 'intro'; render();
   }
   function wipeConfirm() {
-    var decoy = V.isDecoy();
-    confirmSheet(decoy ? 'Tarn-Tresor leeren?' : 'Tresor löschen?', decoy ? 'Alle Inhalte im Tarn-Tresor werden gelöscht.' : 'Alle Dinge, Dateien und Passwörter im Tresor werden gelöscht. Das lässt sich nicht rückgängig machen.', function () {
-      V.wipe().then(function () { openVaultHome(); toast(decoy ? 'Tarn-Tresor geleert' : 'Tresor geleert'); });
+    confirmSheet('Tresor löschen?', 'Alle Dinge, Dateien und Passwörter im Tresor werden gelöscht. Das lässt sich nicht rückgängig machen.', function () {
+      V.wipe().then(function () { openVaultHome(); toast('Tresor geleert'); });
     });
   }
   var confirmCb = null;
@@ -889,7 +921,7 @@
     if (L.faceAvailable) L.faceAvailable().then(function (v) { UI._faceAvail = !!v; });
   };
   UI.close = function () {
-    V.lock();
+    forget();
     if (BOX) BOX.classList.remove('on');
     document.body.classList.remove('vault-open');
   };
@@ -901,6 +933,6 @@
     if (document.visibilityState === 'hidden') { UI._hidAt = Date.now(); return; }
     if (!UI._hidAt || !V.isOpen()) return;
     var mins = +(V.opts().lockAfter || 0);
-    if (Date.now() - UI._hidAt >= mins * 60000) { V.lock(); st.screen = 'lock'; st.entry = ''; hist = []; render(); }
+    if (Date.now() - UI._hidAt >= mins * 60000) relock();
   });
 })(window.W = window.W || {});

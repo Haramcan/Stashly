@@ -24,6 +24,7 @@
     s = String(s || '').trim().replace(/[€\s]/g, '');
     if (!s) return null;
     if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); // „1.500“ = tausendfünfhundert
     var n = parseFloat(s);
     return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
   };

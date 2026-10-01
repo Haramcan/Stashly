@@ -232,12 +232,14 @@
   var S = { route: 'home', arg: null, q: '', room: prefs.room || 'all', status: 'all', sort: prefs.sort || 'new', selecting: false, selected: new Set(), ready: false };
   var ROUTES = ['home', 'items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving', 'settings', 'archive'];
   var TOP_ROUTES = ['items', 'places', 'due', 'archive', 'more'];
+  // Kaputte %-Folgen (z. B. aus einem fremden QR-Code) dürfen das Navigieren nicht abbrechen
+  function safeDecode(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ''), parts = h.split('/');
     var r = parts[0] || 'home';
     if (ROUTES.indexOf(r) < 0) r = 'home';
     S.route = r;
-    S.arg = parts[1] ? decodeURIComponent(parts[1]) : null;
+    S.arg = parts[1] ? safeDecode(parts[1]) : null;
   }
   function go(path) { if (location.hash !== '#/' + path) location.hash = '#/' + path; else render(); }
   var scrollMem = {}, curKey = location.hash || '#/';
@@ -1199,8 +1201,10 @@
     var snap = snapshot([x.it]), job = jobFor(x);
     W.Sound.play(how === 'swipe' ? 'swoosh' : 'done');
     hidePillFor(key);
-    animateOut(el, how || 'done', function () { job().then(afterRemChange); });
-    U.toast(doneText(x), { action: 'Rückgängig', ms: 5000, onAction: function () { undo(snap); } });
+    // „Rückgängig“ während der Ausblend-Animation: dann gar nicht erst erledigen
+    var cancelled = false;
+    animateOut(el, how || 'done', function () { if (cancelled) { render(); return; } job().then(afterRemChange); });
+    U.toast(doneText(x), { action: 'Rückgängig', ms: 5000, onAction: function () { cancelled = true; undo(snap); } });
   }
   function doneAll() {
     var list = M.reminders().active; if (!list.length) return;
@@ -1216,10 +1220,12 @@
     var seen = (DB.meta.dueSeen || []).filter(function (k) { return k !== key; });
     W.Sound.play(how === 'swipe' ? 'swoosh' : 'tap');
     hidePillFor(key);
+    var cancelled = false;
     animateOut(el, how || 'snooze', function () {
+      if (cancelled) { render(); return; }
       Promise.all([DB.setMeta('dueSnooze', sz), DB.setMeta('dueSeen', seen)]).then(afterRemChange);
     });
-    U.toast('Erinnert dich ' + SNZ[which][1], { action: 'Rückgängig', ms: 5000, onAction: function () { undo(snap); } });
+    U.toast('Erinnert dich ' + SNZ[which][1], { action: 'Rückgängig', ms: 5000, onAction: function () { cancelled = true; undo(snap); } });
   }
   function openSnooze(key) {
     var x = findRem(key); if (!x) return;
@@ -1661,7 +1667,7 @@
     openPrompt('Verliehen', 'An wen?', '', { placeholder: 'Name' }, function (v) {
       if (!v) return;
       // Rückgabe standardmäßig in zwei Wochen; das genaue Datum kann man beim Bearbeiten ändern
-      archiveItem(it, { k: 'lent', to: v.trim(), due: U.dayStr(new Date(Date.now() + 14 * 864e5)) });
+      archiveItem(it, { k: 'lent', to: v.trim(), due: U.addInterval(U.today(), 14, 'd') });
     });
   }
   function archiveItem(it, arch) {
@@ -1679,8 +1685,20 @@
   /* Gegenstand verschlüsselt in den Tresor verschieben: Schnappschuss an den Tresor übergeben,
      der die Fotos verschlüsselt. Erst wenn das geklappt hat, wird das Original gelöscht. */
   function sendToVault(it) {
+    // Alle Angaben mitnehmen, damit beim Löschen des Originals nichts verloren geht
+    var det = [];
+    if (it.category) det.push('Kategorie: ' + it.category);
+    if (M.qty(it) !== 1) det.push('Anzahl: ' + M.qty(it));
+    if (it.value) det.push('Wert: ' + U.money(it.value));
+    if (it.bought) det.push('Gekauft: ' + U.fmtDay(it.bought));
+    if (it.warranty) det.push('Garantie bis: ' + U.fmtDay(it.warranty));
+    if (it.serial) det.push('Seriennummer: ' + it.serial);
+    if (it.expiry) det.push('Haltbar bis: ' + U.fmtDay(it.expiry));
+    if ((it.tags || []).length) det.push('Etiketten: ' + it.tags.join(', '));
+    if (it.lentTo) det.push('Verliehen an: ' + it.lentTo);
+    var note = [it.notes || '', det.join('\n')].filter(Boolean).join('\n\n');
     var snap = {
-      name: it.name, place: M.locText(it), note: it.notes || '',
+      name: it.name, place: M.locText(it), note: note, raw: JSON.parse(JSON.stringify(it)),
       value: it.value, photoIds: (it.photos || []).map(function (p) { return { id: p.id, t: p.t }; }),
       docs: (it.docs || []).map(function (d) { return { id: d.id, name: d.name, type: d.type, size: d.size }; })
     };
@@ -2117,7 +2135,8 @@
       return { id: t.id, title: t.title, every: t.every, unit: t.unit, next: t.next || U.addInterval(t.last || U.today(), t.every, t.unit), last: t.last || '' };
     });
     var qtyRaw = $('#f-qty').value.trim();
-    var item = {
+    // Vom bisherigen Stand ausgehen, damit Felder ohne Formularfeld (Favorit, Archiv, Verleih ans Archiv) erhalten bleiben
+    var item = Object.assign({}, orig || {}, {
       id: d.id,
       name: name,
       roomId: roomId,
@@ -2143,7 +2162,7 @@
       history: orig ? (orig.history || []).slice() : [],
       createdAt: orig && orig.createdAt ? orig.createdAt : now,
       updatedAt: now
-    };
+    });
     if (!orig) item.history.push({ t: now, text: 'Erfasst in ' + M.locText(item) });
     else {
       var moved = locationChangeText(orig, item);
@@ -2524,7 +2543,7 @@
   function handleScan(text) {
     var m = /#\/place\/([^\/?#\s]+)/.exec(text || '');
     if (m) {
-      var id = decodeURIComponent(m[1]);
+      var id = safeDecode(m[1]);
       if (M.place(id)) { closeSheet($('#sheetScan')); go('place/' + encodeURIComponent(id)); U.toast('Etikett erkannt'); return; }
       U.toast('Diese Kiste ist in dieser App nicht gespeichert.');
     } else {
@@ -2663,18 +2682,19 @@
           var go2 = function () {
             runExport('Sicherung wird eingespielt', function () {
               return X.restore(parsed, mode, function (i, n) { $('#toastMsg').textContent = 'Sicherung wird eingespielt … ' + i + ' von ' + n + ' Dateien'; }).then(function (r) {
-                U.toast('Fertig: ' + U.plural(r.items, 'Gegenstand', 'Gegenstände') + ', ' + U.plural(r.rooms, 'Raum', 'Räume') + ' und ' + U.plural(r.places, 'Ort', 'Orte') + ' übernommen.');
+                U.toast('Fertig: ' + U.plural(r.items, 'Gegenstand', 'Gegenstände') + ', ' + U.plural(r.rooms, 'Raum', 'Räume') + ' und ' + U.plural(r.places, 'Ort', 'Orte') + ' übernommen.' +
+                  (r.vault === 'restored' ? ' Der Tresor ist auch wieder da, er öffnet sich mit deinem Tresor-Code.' : r.vault === 'kept' ? ' Der Tresor auf diesem Gerät bleibt, wie er ist.' : ''));
                 render();
               });
             });
           };
-          if (mode === 'replace') askConfirm('Alles ersetzen?', 'Alle Einträge und Fotos auf diesem Gerät werden gelöscht und durch die Sicherung ersetzt.', 'Ersetzen').then(function (ok) { if (ok) go2(); });
+          if (mode === 'replace') askConfirm('Alles ersetzen?', 'Alle Einträge und Fotos auf diesem Gerät werden gelöscht und durch die Sicherung ersetzt. Dein Tresor bleibt dabei unangetastet.', 'Ersetzen').then(function (ok) { if (ok) go2(); });
           else go2();
         };
       };
       openMenu('Sicherung einspielen', [
         { label: 'Hinzufügen', meta: 'Vorhandene Einträge bleiben. Gleiche Einträge werden aktualisiert.', run: run('merge') },
-        { label: 'Alles ersetzen', meta: 'Löscht alles auf diesem Gerät und spielt die Sicherung ein.', danger: true, run: run('replace') }
+        { label: 'Alles ersetzen', meta: 'Löscht alle Einträge auf diesem Gerät und spielt die Sicherung ein. Der Tresor bleibt.', danger: true, run: run('replace') }
       ], info);
     }, function (err) { U.toast('Die Datei konnte nicht gelesen werden: ' + (err && err.message || err)); });
   });

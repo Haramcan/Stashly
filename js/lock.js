@@ -160,8 +160,15 @@
   // Nach der eingestellten Zeit im Hintergrund wieder sperren
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
-    if (!L.enabled() || L.isOpen() || !hiddenAt) return;
+    if (!L.enabled() || !hiddenAt) return;
+    // Offene Sperre zum Entsperren: nichts zu tun. Offenes „Code ändern“ zählt nicht als gesperrt,
+    // sonst käme man danach mit „Abbrechen“ ohne Code in die App.
+    if (L.isOpen() && mode === 'unlock') return;
     var mins = +(cfg().lockAfter || 0);
-    if (Date.now() - hiddenAt >= mins * 60000) open('unlock');
+    if (Date.now() - hiddenAt >= mins * 60000) {
+      var cb = setupDone; setupDone = null;
+      open('unlock');
+      if (cb) cb(false);
+    }
   });
 })(window.W = window.W || {});

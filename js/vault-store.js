@@ -17,6 +17,9 @@
 
   // Nur im Speicher, solange offen
   var master = null, open = false, decoy = false, data = null;
+  // Zählt jedes Öffnen und Sperren. Laufende Abläufe prüfen damit, ob noch derselbe Tresor offen ist.
+  var session = 0;
+  V.session = function () { return session; };
 
   V.available = function () { return C.available() && !!DB; };
   V.configured = function () { return !!DB.meta[K.set]; };
@@ -74,16 +77,37 @@
     }).then(function () { return recoveryKey; });
   };
   V.removeDecoy = function () {
-    return DB.setMeta(K.decoySet, false).then(function () { return DB.setMeta(K.decoyProf, null); })
+    // Dateien des Tarn-Tresors mitlöschen: alles Verschlüsselte, das der offene echte Tresor nicht nutzt
+    var keep = {};
+    if (open && !decoy && data) data.files.forEach(function (f) { keep['venc:' + f.id] = 1; });
+    var orphans = (open && !decoy) ? V.blobKeysEnc().then(function (keys) {
+      var del = keys.filter(function (k) { return !keep[k]; });
+      return del.length ? DB.delBlobs(del) : null;
+    }) : Promise.resolve();
+    return orphans.then(function () { return DB.setMeta(K.decoySet, false); }).then(function () { return DB.setMeta(K.decoyProf, null); })
       .then(function () { return DB.setMeta(K.decoyData, null); });
+  };
+  // Welcher Tresor öffnet sich mit diesem Code? 'real', 'decoy' oder null. Verhindert gleiche Codes für beide.
+  V.codeOwner = function (code) {
+    return C.openWithCode(DB.meta[K.prof], code).then(function () { return 'real'; }, function () {
+      var dp = V.hasDecoy() && DB.meta[K.decoyProf];
+      if (!dp) return null;
+      return C.openWithCode(dp, code).then(function () { return 'decoy'; }, function () { return null; });
+    });
   };
 
   /* ---------- Öffnen ---------- */
   function loadData(dec) {
     var rec = DB.meta[dec ? K.decoyData : K.data];
-    return rec ? C.decryptJSON(master, rec).then(function (d) { return Object.assign(EMPTY(), d); }) : Promise.resolve(EMPTY());
+    return rec ? C.decryptJSON(master, rec).then(function (d) {
+      d = Object.assign(EMPTY(), d);
+      // Vorschau-Adressen gelten nur bis zum Neustart (ältere Stände hatten sie mitgespeichert)
+      d.files.forEach(function (f) { delete f.url; });
+      return d;
+    }) : Promise.resolve(EMPTY());
   }
   function finishOpen(mk, dec) {
+    session++;
     master = mk; decoy = dec;
     return loadData(dec).then(function (d) { data = d; open = true; return dec ? ensureDecoyDevWrap() : null; })
       .then(function () { return { decoy: dec }; });
@@ -185,26 +209,38 @@
   /* ---------- Speichern ---------- */
   V.save = function () {
     if (!open) return Promise.reject(new Error('Tresor ist nicht offen'));
-    return C.encryptJSON(master, data).then(function (enc) { return DB.setMeta(decoy ? K.decoyData : K.data, enc); });
+    // Schlüssel und Ziel jetzt festhalten: ein Wechsel während des Verschlüsselns darf nichts vertauschen
+    var mk = master, slot = decoy ? K.decoyData : K.data;
+    var clean = Object.assign({}, data, { files: data.files.map(function (f) { var c = Object.assign({}, f); delete c.url; return c; }) });
+    return C.encryptJSON(mk, clean).then(function (enc) { return DB.setMeta(slot, enc); });
   };
 
   /* ---------- Dateien (verschlüsselt) ---------- */
   V.putFile = function (id, blob) {
+    var mk = master;
+    if (!mk) return Promise.reject(new Error('Tresor ist nicht offen'));
     return blob.arrayBuffer()
-      .then(function (buf) { return C.encryptBytes(master, new Uint8Array(buf)); })
+      .then(function (buf) { return C.encryptBytes(mk, new Uint8Array(buf)); })
       .then(function (rec) {
         // Als Blob mit der verschlüsselten Nutzlast speichern (iv vorangestellt via JSON-Hülle wäre unhandlich → zwei Felder)
         var payload = new Blob([JSON.stringify(rec)], { type: 'application/x-wiw-enc' });
         return DB.putBlob('venc:' + id, payload);
       });
   };
+  // Entschlüsselte Vorschau-Adressen merken, damit sie beim Sperren wieder freigegeben werden
+  var liveURLs = [];
   V.getFileURL = function (id, mime) {
+    var mk = master, s0 = session;
+    if (!mk) return Promise.resolve('');
     return DB.getBlob('venc:' + id).then(function (b) {
       if (!b) return '';
       return b.text().then(function (txt) {
         var rec = JSON.parse(txt);
-        return C.decryptBytes(master, rec).then(function (buf) {
-          return URL.createObjectURL(new Blob([buf], { type: mime || 'application/octet-stream' }));
+        return C.decryptBytes(mk, rec).then(function (buf) {
+          if (s0 !== session) return '';
+          var u = URL.createObjectURL(new Blob([buf], { type: mime || 'application/octet-stream' }));
+          liveURLs.push(u);
+          return u;
         });
       });
     });
@@ -225,7 +261,11 @@
   V.clearLog = function () { return DB.setMeta(K.log, []); };
 
   /* ---------- Schließen / Löschen ---------- */
-  V.lock = function () { master = null; open = false; decoy = false; data = null; };
+  V.lock = function () {
+    session++; master = null; open = false; decoy = false; data = null;
+    liveURLs.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    liveURLs = [];
+  };
   V.wipe = function () {
     // Nur den gerade offenen Tresor löschen (Dateien + Index)
     var files = (data && data.files) || [], ids = files.map(function (f) { return 'venc:' + f.id; });
@@ -242,6 +282,29 @@
     }).then(function () {
       return Promise.all([K.set, K.prof, K.data, K.decoySet, K.decoyProf, K.decoyData, K.opts, K.log].map(function (k) { return DB.setMeta(k, null); }));
     }).then(function () { V.lock(); });
+  };
+  /* ---------- Sicherung ---------- */
+  // Alles, was für die Sicherung nötig ist, ist schon verschlüsselt. Der Geräteschlüssel kommt NIE mit:
+  // sonst ließe sich der Tresor aus der Sicherungsdatei ohne Code öffnen. Darum fallen auch die
+  // Face-ID- und „jeder Code“-Hüllen weg; der Tarn-Tresor bekommt seine beim ersten Öffnen neu.
+  var BACKUP_KEYS = [K.set, K.prof, K.data, K.decoySet, K.decoyProf, K.decoyData, K.opts, K.log];
+  V.exportMeta = function () {
+    if (!V.configured()) return null;
+    var out = {};
+    BACKUP_KEYS.forEach(function (k) {
+      var v = DB.meta[k]; if (v == null) return;
+      v = JSON.parse(JSON.stringify(v));
+      if (k === K.prof || k === K.decoyProf) { delete v.wrapFace; delete v.wrapAny; }
+      if (k === K.opts) { v.faceOn = false; v.faceCred = null; v.tarnNow = false; }
+      out[k] = v;
+    });
+    return out;
+  };
+  // Nur auf einem Gerät ohne eigenen Tresor einspielen, ein vorhandener wird nie überschrieben
+  V.importMeta = function (m) {
+    if (V.configured() || !m || !m[K.set] || !m[K.prof]) return Promise.resolve(false);
+    return Promise.all(BACKUP_KEYS.filter(function (k) { return k in m; }).map(function (k) { return DB.setMeta(k, m[k]); }))
+      .then(function () { return true; });
   };
   V.blobKeysEnc = function () {
     return DB.blobKeys().then(function (keys) { return keys.filter(function (k) { return String(k).indexOf('venc:') === 0; }); });
