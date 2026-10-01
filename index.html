@@ -22,6 +22,7 @@
 try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = document.documentElement;
   if (wp.look === 'dark' || wp.look === 'light') de.setAttribute('data-look', wp.look);
   if (wp.lock && wp.lockHash) de.classList.add('is-locked'); } catch (e) { /* egal */ }</script>
+<script src="js/themes.js"></script>
 </head>
 <body>
 
@@ -42,7 +43,7 @@ try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = docum
         <path class="c-flapR" d="M60 56 h26 v-8 a2 2 0 0 1 2-2 H62 a2 2 0 0 1-2 2 Z" fill="var(--carton)"/>
       </svg>
     </div>
-    <div class="sp-word"><b>Wo ist was</b></div>
+    <div class="sp-word"><b>Stashly</b></div>
     <div class="sp-tag">Alles hat seinen Platz</div>
   </div>
 </div>
@@ -133,6 +134,7 @@ try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = docum
         <span>Fotos</span>
         <div class="photos" id="ePhotos"></div>
         <input id="photoInput" type="file" accept="image/*" multiple class="sr-only" tabindex="-1">
+        <input id="photoCam" type="file" accept="image/*" capture="environment" class="sr-only" tabindex="-1">
         <div class="suggest" id="eSuggest" hidden></div>
         <small id="photoHint" hidden>Tippe auf ein Foto, um es zum Titelbild zu machen.</small>
       </div>

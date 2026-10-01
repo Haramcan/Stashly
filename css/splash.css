@@ -1,7 +1,7 @@
 /* Wo ist was – Startanimation: Karton öffnet sich, die Dinge strömen heraus, dann erscheint die App. */
 #startsplash{
   position:fixed;inset:0;z-index:4000;display:grid;place-items:center;overflow:hidden;
-  --brand:#2F5D50;--brand-2:#264C42;--brand-deep:#17322B;
+  --brand:var(--sp-a,#2F5D50);--brand-2:var(--sp-b,#264C42);--brand-deep:var(--sp-c,#17322B);
   --carton:#E7E3DA;--carton-sh:#CFC7B6;--carton-dk:#C9BFA8;--inside:#121E1A;--on-brand:#F1F4F1;
   background:radial-gradient(120% 90% at 50% 20%,var(--brand) 0%,var(--brand-2) 58%,var(--brand-deep) 100%);
   animation:sp-reveal .72s cubic-bezier(.32,.72,0,1) 2.6s forwards;
@@ -19,9 +19,10 @@
 #startsplash .c-flapL{transform-origin:left bottom;animation:sp-flapL .55s cubic-bezier(.34,1.56,.64,1) .5s forwards}
 #startsplash .c-flapR{transform-origin:right bottom;animation:sp-flapR .55s cubic-bezier(.34,1.56,.64,1) .5s forwards}
 #startsplash .c-body{transform-origin:50% 100%;animation:sp-shake 1.3s cubic-bezier(.32,.72,0,1) .75s}
-#startsplash .sp-word{margin-top:26px;height:1.4em;overflow:hidden}
+/* Höhe in der Schriftgröße des Wortes selbst, mit Platz für Unterlängen (y), damit nichts abgeschnitten wird */
+#startsplash .sp-word{margin-top:24px;font-size:34px;line-height:1.3;height:1.3em;padding:0 .12em .14em;overflow:hidden}
 #startsplash .sp-word b{display:block;font-family:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-  font-weight:800;font-size:26px;line-height:1.4;letter-spacing:-.01em;color:var(--on-brand);transform:translateY(115%);
+  font-weight:800;font-size:1em;line-height:1.3;letter-spacing:-.02em;color:var(--on-brand);transform:translateY(125%);
   animation:sp-rise .65s cubic-bezier(.32,.72,0,1) 1.5s forwards}
 #startsplash .sp-tag{margin-top:7px;font-family:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   font-size:13.5px;letter-spacing:.02em;color:rgba(241,244,241,.68);opacity:0;animation:sp-appear .5s 1.95s forwards}

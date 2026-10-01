@@ -19,7 +19,7 @@
     eyeOff: '<path d="m3 3 18 18"/><path d="M10.6 5.6A9.7 9.7 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3 3.8M6.6 6.6A16.8 16.8 0 0 0 2.5 12S6 18.5 12 18.5a9.6 9.6 0 0 0 4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
     dice: '<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.1" fill="currentColor"/><circle cx="15" cy="15" r="1.1" fill="currentColor"/><circle cx="15" cy="9" r="1.1" fill="currentColor"/><circle cx="9" cy="15" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     warn: '<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>',
     star: '<path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
     pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>',
@@ -49,7 +49,7 @@
       return '<line x1="' + (50 + Math.cos(a) * 11).toFixed(2) + '" y1="' + (50 + Math.sin(a) * 11).toFixed(2) + '" x2="' + (50 + Math.cos(a) * 24).toFixed(2) + '" y2="' + (50 + Math.sin(a) * 24).toFixed(2) + '"/>'; }).join('');
     return '<svg class="dial ' + (cls || '') + '" viewBox="0 0 100 100" width="' + size + '" height="' + size + '" aria-hidden="true">' +
       '<circle cx="50" cy="50" r="48.5" fill="#1D2226" stroke="#C7A15A" stroke-width="1.4"/>' +
-      '<g stroke="#C7A15A" stroke-width="1.2" stroke-linecap="round" opacity=".85">' + t + '</g>' +
+      '<g class="dring" stroke="#C7A15A" stroke-width="1.2" stroke-linecap="round" opacity=".85">' + t + '</g>' +
       '<g class="dknob"><circle cx="50" cy="50" r="30" fill="#D9B978"/><g stroke="#1D2226" stroke-width="4.5" stroke-linecap="round">' + sp + '</g><circle cx="50" cy="50" r="7" fill="#1D2226"/></g></svg>';
   }
 
@@ -144,10 +144,26 @@
       fmode: null, fdel: false, recInput: '', pendingFiles: null };
     hist = [];
   }
-  function go(s) { hist.push(st.screen); st.screen = s; render(); }
+  // Richtung des nächsten Bildwechsels: fwd (tiefer), back (zurück), soft (Tab), reveal (gerade geöffnet), lock
+  var navDir = null, revealUntil = 0;
+  function go(s) { hist.push(st.screen); st.screen = s; navDir = 'fwd'; render(); }
   function back() {
     if (!hist.length) { UI.close(); return; }
-    st.screen = hist.pop(); render();
+    st.screen = hist.pop(); navDir = 'back'; render();
+  }
+  function animOn() { return !document.body.classList.contains('anim-off') && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  // Bildwechsel animieren. Nur bei echtem Navigieren, nicht bei jedem Neuzeichnen (Speichern, Schalter …)
+  function playIn(dir) {
+    SCR.classList.remove('v-in-fwd', 'v-in-back', 'v-in-soft', 'v-in-reveal', 'v-in-lock');
+    TITLE.classList.remove('v-tin');
+    if (!dir || !animOn()) return;
+    if (dir === 'reveal') {
+      Array.prototype.forEach.call(SCR.children, function (el, i) { el.style.setProperty('--i', Math.min(i, 12)); });
+      revealUntil = Date.now() + 1100;
+    }
+    void SCR.offsetWidth;
+    SCR.classList.add('v-in-' + dir);
+    if (dir === 'fwd' || dir === 'back') TITLE.classList.add('v-tin');
   }
 
   /* ---------- Render ---------- */
@@ -162,6 +178,7 @@
     BOX.classList.toggle('viewer', !!r.viewer);
     SCR.innerHTML = r.html;
     SCR.scrollTop = 0;
+    var dir = navDir; navDir = null; playIn(dir);
     if (r.after) r.after();
     tickCodes();
   }
@@ -186,7 +203,7 @@
     var sub = st.codeStep === 2 ? 'Zur Sicherheit noch einmal' :
       (st.codeMode === 'setup' ? 'Nimm nicht denselben Code wie für die App.' : st.codeMode === 'tarn' ? 'Ein anderer Code als dein echter Tresor-Code' : '6 Ziffern, die du dir gut merken kannst');
     return { dark: true, full: true, html:
-      '<div class="vhero"><h3>' + (st.codeStep === 2 ? 'Code wiederholen' : T) + '</h3></div>' +
+      '<div class="vhero">' + dial(76, 'sm') + '<h3>' + (st.codeStep === 2 ? 'Code wiederholen' : T) + '</h3></div>' +
       '<p class="vsub" id="vsub">' + sub + '</p>' + dots() + '<div class="spacer"></div>' + keypad(false) + '<div style="height:10px"></div>' };
   };
   S.recovery = function () {
@@ -213,7 +230,8 @@
     var o = V.opts();
     return { dark: true, full: true, hideTop: true, html:
       '<div style="height:env(safe-area-inset-top,0px)"></div>' +
-      '<div class="vhero" style="margin-top:20px"><button type="button" class="dialbtn" data-a="dialtap" aria-label="Tresor-Drehrad">' + dial(92, 'big' + (st.armReal ? ' armed' : '')) + '</button><h3>Tresor</h3></div>' +
+      '<button type="button" class="vclose" data-a="close" aria-label="Tresor schließen">' + ic('close') + '</button>' +
+      '<div class="vhero" style="margin-top:4px"><button type="button" class="dialbtn" data-a="dialtap" aria-label="Tresor-Drehrad">' + dial(92, 'big' + (st.armReal ? ' armed' : '')) + '</button><h3>Tresor</h3></div>' +
       '<p class="vsub" id="vsub">' + (o.faceOn ? 'Face ID oder Tresor-Code' : 'Gib deinen Tresor-Code ein') + '</p>' + dots() + '<div class="spacer"></div>' + keypad(o.faceOn) +
       '<button type="button" class="vlink" data-a="forgot">Code vergessen?</button>' };
   };
@@ -429,7 +447,7 @@
       '<button type="button" class="srow" data-a="renewkey"><span class="fl"><b>Wiederherstellungsschlüssel neu erstellen</b><small>Der alte gilt danach nicht mehr</small></span>' + ic('chev') + '</button>' +
       (V.isDecoy() ? '' : '<button type="button" class="srow" data-a="log"><span class="fl"><b>Einbruch-Protokoll</b><small>' + pl(V.log().length, 'Eintrag', 'Einträge') + '</small></span>' + ic('chev') + '</button>' +
         '<button type="button" class="srow" data-a="emergency"><span class="fl"><b>Notfall-Blatt</b><small>Zum Ausdrucken für Familie oder Partner</small></span>' + ic('chev') + '</button>') + '</div>' +
-      '<div class="grp" style="margin-top:16px"><button type="button" class="srow dang" data-a="wipe"><span class="fl"><b>' + (V.isDecoy() ? 'Tarn-Tresor leeren' : 'Tresor löschen') + '</b><small>Löscht alles darin, nach einer Rückfrage</small></span></button></div>' };
+      '<div class="grp" style="margin-top:16px"><button type="button" class="srow dang" data-a="wipe"><span class="fl"><b>Tresor löschen</b><small>Löscht alles darin, nach einer Rückfrage</small></span></button></div>' };
   };
   S.tarn = function () {
     var o = V.opts(), has = V.hasDecoy();
@@ -461,7 +479,7 @@
       '<p class="hint" style="margin:0 4px 12px">Ein Blatt für Familie oder Partner. Es erklärt, wie man mit dem Wiederherstellungsschlüssel an den Tresor kommt, falls dir etwas zustößt.</p>' +
       '<div class="grp" style="padding:16px;background:#FDFDF9;color:#26261F;border:0">' +
       '<div style="font:800 18px/1.1 var(--f-display)">Notfall-Blatt</div><div style="font-size:12px;color:#6A6A60;margin:2px 0 8px">Tresor in der App „Wo ist was“</div>' +
-      '<ol style="margin:0;padding-left:18px;display:grid;gap:7px;font-size:13px;line-height:1.5"><li>Mein iPhone entsperren.</li><li>App „Wo ist was“ öffnen, unten auf „Mehr“ und dann auf „Archiv &amp; Tresor“.</li><li>Unten auf „Code vergessen?“ tippen.</li><li>Meinen Wiederherstellungsschlüssel eingeben (liegt an einem sicheren Ort).</li><li>Einen neuen Tresor-Code festlegen.</li></ol></div>' +
+      '<ol style="margin:0;padding-left:18px;display:grid;gap:7px;font-size:13px;line-height:1.5"><li>Mein iPhone entsperren.</li><li>App „Wo ist was“ öffnen, unten auf den runden Knopf, dann auf „Archiv“ und auf „Tresor“.</li><li>Unten auf „Code vergessen?“ tippen.</li><li>Meinen Wiederherstellungsschlüssel eingeben (liegt an einem sicheren Ort).</li><li>Einen neuen Tresor-Code festlegen.</li></ol></div>' +
       '<div class="vwarn" style="color:var(--warn);background:var(--warn-soft);border-color:transparent">' + ic('warn') + '<span>Wer dieses Blatt und dein entsperrtes iPhone hat, kommt in deinen Tresor. Leg es in einen verschlossenen Umschlag an einen sicheren Ort. Der Tarn-Tresor steht nicht darauf.</span></div>' +
       '<p class="foot">Den Schlüssel selbst findest du unter „Wiederherstellungsschlüssel neu erstellen“.</p>' };
   };
@@ -473,9 +491,13 @@
     return '<div class="kp">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', face ? 'face' : 'blank', '0', 'del'].map(function (k) {
       if (k === 'blank') return '<button type="button" class="blank" tabindex="-1" aria-hidden="true"></button>';
       if (k === 'face') return '<button type="button" class="plain" data-k="face" aria-label="Face ID">' + ic('face') + '</button>';
-      if (k === 'del') return '<button type="button" class="plain" data-k="del" aria-label="Löschen">' + ic('del') + '</button>';
+      if (k === 'del') return delKey();
       return '<button type="button" data-k="' + k + '">' + k + '</button>';
     }).join('') + '</div>';
+  }
+  function delKey() {
+    return st.entry.length ? '<button type="button" class="plain" data-k="del" aria-label="Löschen">' + ic('del') + '</button>'
+      : '<button type="button" class="plain txt" data-k="cancel">Abbrechen</button>';
   }
   function logWhen(t) {
     var d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
@@ -503,6 +525,7 @@
     catch (e) { toast(what + ' kopiert'); }
   }
   function openVaultHome(decoyEdit) {
+    st.armReal = false; navDir = 'reveal';
     st.screen = 'items'; st.tab = 'items'; st.pwv = 'pw'; st.ff = 'all'; st.folder = null; hist = [];
     loadFileURLs();
     render();
@@ -512,44 +535,77 @@
   function importItem(pend) {
     var snap = pend.importItem, id = U.uid('vi');
     var item = { id: id, n: snap.name, place: snap.place || '', note: snap.note || '', c: pickColor() };
+    if (snap.raw) item.app = snap.raw; // vollständiger Stand aus der App, verschlüsselt mit abgelegt
     var photos = (snap.photoIds || []), docs = (snap.docs || []);
-    var chain = Promise.resolve();
+    var chain = Promise.resolve(), vd = D(), s0 = V.session(), written = [], newFiles = [];
+    function same() { if (V.session() !== s0 || V.data() !== vd) throw new Error('switched'); }
     photos.forEach(function (p, i) {
-      chain = chain.then(function () { return DB.getBlob(p.id); }).then(function (blob) {
-        if (!blob) return; var fid = U.uid('vf');
-        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'photo', n: snap.name + (photos.length > 1 ? ' ' + (i + 1) : ''), size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      chain = chain.then(function () { same(); return DB.getBlob(p.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf'); same(); written.push(fid);
+        return V.putFile(fid, blob).then(function () { newFiles.push({ id: fid, k: 'photo', n: snap.name + (photos.length > 1 ? ' ' + (i + 1) : ''), size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
       });
     });
     docs.forEach(function (d) {
-      chain = chain.then(function () { return DB.getBlob(d.id); }).then(function (blob) {
-        if (!blob) return; var fid = U.uid('vf');
-        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'doc', n: d.name, size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      chain = chain.then(function () { same(); return DB.getBlob(d.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf'); same(); written.push(fid);
+        return V.putFile(fid, blob).then(function () { newFiles.push({ id: fid, k: 'doc', n: d.name, size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
       });
     });
     chain.then(function () {
-      D().items.unshift(item);
+      same();
+      newFiles.reverse().forEach(function (f) { vd.files.unshift(f); });
+      vd.items.unshift(item);
       return V.save();
     }).then(function () {
       if (pend.onImported) try { pend.onImported(); } catch (e) {}
       loadFileURLs(); render();
       toast('„' + snap.name + '“ liegt jetzt verschlüsselt im Tresor');
-    });
+    }, function () { abortWrites(written); }); // Original bleibt dann in der App
   }
   // Datei-URLs für Vorschaubilder nachladen (entschlüsselt)
+  // Alle auf einmal und erst nach dem Erscheinen neu zeichnen, damit die Animation nicht abreißt
   function loadFileURLs() {
     var files = D().files.filter(function (f) { return !f.url && f.hasBlob; });
-    files.forEach(function (f) {
-      V.getFileURL(f.id, f.mime).then(function (u) { if (u) { f.url = u; if (BOX.classList.contains('on')) render(); } }).catch(function () {});
+    if (!files.length) return;
+    Promise.all(files.map(function (f) {
+      return V.getFileURL(f.id, f.mime).then(function (u) { if (u) f.url = u; }).catch(function () {});
+    })).then(function () {
+      setTimeout(function () { if (UI.isOpen() && V.isOpen()) render(); }, Math.max(0, revealUntil - Date.now()));
     });
   }
 
   function key(k) {
-    if (k === 'face') { faceBiometric(false); return; }
+    // Drehrad vorher angetippt = Face ID öffnet den echten Tresor
+    if (k === 'face') { faceBiometric(!!st.armReal); return; }
+    if (k === 'cancel') { if (!st.busy) cancelCode(); return; }
+    if (st.busy) return;
     if (k === 'del') st.entry = st.entry.slice(0, -1);
     else if (st.entry.length < 6) st.entry += k; else return;
     var d = document.getElementById('vDots');
     if (d) Array.prototype.forEach.call(d.children, function (el, i) { el.classList.toggle('on', i < st.entry.length); });
+    syncPad();
     if (st.entry.length === 6) codeDone(st.entry);
+  }
+  // Löschtaste ↔ „Abbrechen“ tauschen und die Skala des Drehrads pro Ziffer weiterdrehen
+  function syncPad() {
+    var b = SCR.querySelector('.kp [data-k="del"], .kp [data-k="cancel"]');
+    if (b && (b.dataset.k === 'del') !== !!st.entry.length) b.outerHTML = delKey();
+    var r = SCR.querySelector('.dial .dring');
+    if (r) r.style.transform = 'rotate(' + (st.entry.length * -30) + 'deg)';
+  }
+  // Drehrad aufdrehen, dann weiter
+  function spinOpen(cb) {
+    var dl = SCR.querySelector('.dial');
+    if (!dl || matchMedia('(prefers-reduced-motion: reduce)').matches) { cb(); return; }
+    st.busy = true; dl.classList.add('turn');
+    setTimeout(function () { st.busy = false; if (UI.isOpen() && V.isOpen()) cb(); }, 560);
+  }
+  function cancelCode() {
+    st.entry = ''; st.first = ''; st.codeStep = 1;
+    if (st.screen === 'lock') { UI.close(); return; }
+    // Nach dem Wiederherstellungsschlüssel ist der Tresor schon offen: alter Code bleibt einfach gültig
+    if (st.codeMode === 'reset') { openVaultHome(); toast('Dein bisheriger Code gilt weiter'); return; }
+    back();
   }
   function badCode(msg) {
     var d = document.getElementById('vDots');
@@ -559,10 +615,12 @@
   }
   function codeDone(code) {
     if (st.screen === 'lock') {
+      st.busy = true;
       V.unlock(code).then(function (r) {
+        st.busy = false;
         if (r.decoy) V.addLog('Tarn-Tresor mit Tarn-Code geöffnet', false);
-        openVaultHome();
-      }, function () { V.addLog('Falscher Code', true); badCode('Falscher Code. Versuch es noch einmal.'); });
+        spinOpen(openVaultHome);
+      }, function () { st.busy = false; V.addLog('Falscher Code', true); badCode('Falscher Code. Versuch es noch einmal.'); });
       return;
     }
     // Code festlegen (setup/change/tarn/reset)
@@ -572,31 +630,71 @@
       setTimeout(render, 140); return;
     }
     if (code !== st.first) { badCode('Die Codes waren verschieden. Bitte neu festlegen.'); return; }
-    st.entry = '';
+    st.entry = ''; st.busy = true;
+    var mode = st.codeMode;
+    // Ein Code darf nie beide Tresore öffnen, sonst öffnet der Tarn-Code den echten Tresor
+    var clash = mode === 'setup' ? Promise.resolve(false) : V.codeOwner(code).then(function (owner) {
+      if (!owner) return false;
+      if (mode === 'tarn') return true;
+      return owner !== (V.isDecoy() ? 'decoy' : 'real');
+    });
+    clash.then(function (bad) {
+      if (bad) { st.busy = false; badCode('Diesen Code kannst du nicht nehmen. Bitte einen anderen.'); return; }
+      saveNewCode(code);
+    });
+  }
+  function saveNewCode(code) {
+    function done() { st.busy = false; }
     if (st.codeMode === 'setup') {
-      V.setup(code).then(function (rk) { st.recKey = rk; st.recMode = 'show'; st.wrote = false; go('recovery'); });
+      V.setup(code).then(function (rk) { done(); st.recKey = rk; st.recMode = 'show'; st.wrote = false; go('recovery'); });
     } else if (st.codeMode === 'change') {
-      V.changeCode(code).then(function () { popTo('settings'); toast('Neuer Tresor-Code gespeichert'); });
+      V.changeCode(code).then(function () { done(); popTo('settings'); toast('Neuer Tresor-Code gespeichert'); });
     } else if (st.codeMode === 'tarn') {
       var mode = V.opts().tarnMode || 'code';
-      V.setupDecoy(code, mode).then(function () { popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
+      V.setupDecoy(code, mode).then(function () { done(); popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
     } else if (st.codeMode === 'reset') {
-      V.changeCode(code).then(function () { openVaultHome(); toast('Neuer Code gespeichert'); });
-    }
+      V.changeCode(code).then(function () { done(); openVaultHome(); toast('Neuer Code gespeichert'); });
+    } else done();
   }
 
   function popTo(screen) {
     while (hist.length && st.screen !== screen) st.screen = hist.pop();
-    st.screen = screen; render();
+    st.screen = screen; navDir = 'back'; render();
   }
 
-  /* Face ID: biometrische Prüfung über W.Lock, dann über den Geräteschlüssel öffnen */
+  /* Face ID: echte Prüfung über einen eigenen Tresor-Passkey (W.Lock), erst danach über den Geräteschlüssel öffnen.
+     Muss direkt aus einem Antippen heraus aufgerufen werden, sonst blockt iOS die Abfrage. */
+  function faceVerify() {
+    var id = V.opts().faceCred;
+    if (!id || !L.verifyFaceWith) return Promise.reject(new Error('reenroll'));
+    return L.verifyFaceWith(id);
+  }
+  function faceEnroll(done) {
+    if (!L.enrollFace) { toast('Face ID geht hier nicht.'); return; }
+    L.enrollFace('Stashly Tresor').then(function (id) {
+      faceScan(function () { V.enableFace(id).then(done); });
+    }, function () { toast('Face ID konnte nicht eingerichtet werden.'); render(); });
+  }
   function faceBiometric(wantReal) {
-    faceScan(function () {
-      V.faceOpen(wantReal).then(function (r) {
-        if (r.decoy) V.addLog('Tarn-Tresor mit Face ID geöffnet', false);
-        openVaultHome();
-      }, function () { toast('Face ID hat nicht geklappt. Gib deinen Code ein.'); });
+    if (st.busy) return;
+    st.busy = true;
+    FID.classList.remove('done'); FID.classList.add('on');
+    faceVerify().then(function () {
+      FID.classList.add('done');
+      return new Promise(function (r) { setTimeout(r, 420); });
+    }).then(function () {
+      FID.classList.remove('on'); setTimeout(function () { FID.classList.remove('done'); }, 220);
+      return V.faceOpen(wantReal);
+    }).then(function (r) {
+      st.busy = false;
+      if (r.decoy) V.addLog('Tarn-Tresor mit Face ID geöffnet', false);
+      spinOpen(openVaultHome);
+    }, function (e) {
+      st.busy = false; FID.classList.remove('on', 'done');
+      var m = e && e.message;
+      toast(m === 'reenroll' ? 'Schalte Face ID in den Tresor-Einstellungen einmal aus und wieder an.'
+        : /Tarn-Code/.test(m || '') ? 'Öffne den Tarn-Tresor einmal mit dem Tarn-Code, danach klappt Face ID.'
+        : 'Face ID hat nicht geklappt. Gib deinen Code ein.');
     });
   }
 
@@ -609,7 +707,7 @@
     BOX.addEventListener('click', function (e) {
       var t;
       if ((t = e.target.closest('[data-k]'))) { if (t.dataset.k === 'face' && longFired) { longFired = false; return; } key(t.dataset.k); return; }
-      if ((t = e.target.closest('[data-tab]'))) { st.tab = t.dataset.tab; render(); return; }
+      if ((t = e.target.closest('[data-tab]'))) { if (st.tab !== t.dataset.tab) navDir = 'soft'; st.tab = t.dataset.tab; render(); return; }
       if ((t = e.target.closest('[data-pwv]'))) { st.pwv = t.dataset.pwv; render(); return; }
       if ((t = e.target.closest('[data-ff]'))) { st.ff = t.dataset.ff; render(); return; }
       if ((t = e.target.closest('[data-fold]'))) { st.folder = st.folder === t.dataset.fold ? null : t.dataset.fold; render(); return; }
@@ -643,20 +741,27 @@
       var r = e.target.closest && e.target.closest('.prow[role="button"]');
       if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.click(); }
     });
-    // langes Drücken auf Face ID = echter Tresor
+    // langes Drücken auf Face ID = echter Tresor. Ausgelöst beim Loslassen, weil iOS Face ID nur direkt aus einer Berührung erlaubt.
+    var longArm = false, longBtn = null;
     BOX.addEventListener('pointerdown', function (e) {
-      if (!e.target.closest('[data-k="face"]')) return;
-      longFired = false; clearTimeout(longT);
-      longT = setTimeout(function () { longFired = true; faceBiometric(true); }, 550);
+      var b = e.target.closest('[data-k="face"]'); if (!b) return;
+      longFired = false; longArm = false; longBtn = b; clearTimeout(longT);
+      longT = setTimeout(function () { longArm = true; b.classList.add('held'); if (navigator.vibrate) try { navigator.vibrate(12); } catch (x) {} }, 550);
     });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { BOX.addEventListener(ev, function () { clearTimeout(longT); }); });
+    BOX.addEventListener('pointerup', function (e) {
+      clearTimeout(longT);
+      if (longBtn) longBtn.classList.remove('held');
+      if (longArm && e.target.closest('[data-k="face"]')) { longFired = true; faceBiometric(true); }
+      longArm = false; longBtn = null;
+    });
+    ['pointercancel', 'pointerleave'].forEach(function (ev) { BOX.addEventListener(ev, function () { clearTimeout(longT); longArm = false; if (longBtn) longBtn.classList.remove('held'); }); });
     FILEIN.addEventListener('change', function () { addPickedFiles(FILEIN.files); FILEIN.value = ''; });
   }
 
   function toggleOpt(id, el) {
     var on = el.getAttribute('aria-checked') !== 'true';
     if (id === 'faceOn') {
-      if (on) { faceScan(function () { V.enableFace().then(function () { el.setAttribute('aria-checked', 'true'); toast('Face ID für den Tresor ist an'); }); }); }
+      if (on) { faceEnroll(function () { el.setAttribute('aria-checked', 'true'); toast('Face ID für den Tresor ist an'); }); }
       else { V.disableFace().then(function () { render(); toast('Face ID ist aus'); }); }
       return;
     }
@@ -679,7 +784,8 @@
         if (st.recMode === 'renew') { popTo('settings'); toast('Neuer Schlüssel gilt ab jetzt'); }
         else go('face');
         break;
-      case 'faceyes': if (UI._faceAvail) faceScan(function () { V.enableFace().then(function () { openVaultHome(); toast('Tresor eingerichtet'); }); }); else { openVaultHome(); toast('Tresor eingerichtet'); } break;
+      case 'faceyes': if (UI._faceAvail) faceEnroll(function () { openVaultHome(); toast('Tresor eingerichtet'); }); else { openVaultHome(); toast('Tresor eingerichtet'); } break;
+      case 'close': UI.close(); break;
       case 'faceno': openVaultHome(); toast('Tresor eingerichtet'); break;
       case 'forgot': st.recInput = ''; go('forgot'); break;
       case 'keyok':
@@ -697,7 +803,7 @@
       case 'editpw': var pe = byId(D().passwords, st.pwId); st.editId = pe.id; st.draft = { n: pe.n, url: pe.url || '', u: pe.u || '', pw: pe.pw, note: pe.note || '', totp: pe.totp || '', len: Math.max(8, Math.min(40, (pe.pw || '').length || 20)), up: true, dig: true, sym: true, easy: false }; go('pwNew'); break;
       case 'roll': roll(); break;
       case 'savepw': savePw(); break;
-      case 'reveal': st.show = !st.show; render(); clearTimeout(revealT); if (st.show) revealT = setTimeout(function () { if (st.show) { st.show = false; if (st.screen === 'pwDetail') render(); } }, 30000); break;
+      case 'reveal': st.show = !st.show; render(); clearTimeout(revealT); if (st.show) revealT = setTimeout(function () { if (st.show && V.isOpen()) { st.show = false; if (st.screen === 'pwDetail') render(); } }, 30000); break;
       case 'delpw': delArmed(function () { var arr = D().passwords, p = byId(arr, st.pwId); arr.splice(arr.indexOf(p), 1); save(); back(); toast('Gelöscht'); }); break;
       case 'newnote': st.neditId = null; st.ndraft = { tpl: null, n: '', v: [] }; go('noteNew'); break;
       case 'editnote': var ne = byId(D().notes, st.nid); st.neditId = ne.id; st.ndraft = { tpl: ne.tpl, n: ne.n, v: ne.v.slice() }; go('noteNew'); break;
@@ -752,17 +858,24 @@
   function addPickedFiles(fileList) {
     var list = Array.prototype.slice.call(fileList || []); if (!list.length) return;
     var today = new Date().toLocaleDateString('de-DE');
-    var chain = Promise.resolve(), added = 0;
+    var chain = Promise.resolve(), added = 0, d = D(), s0 = V.session(), written = [];
+    function same() { if (V.session() !== s0 || V.data() !== d) throw new Error('switched'); }
     list.forEach(function (file, i) {
       var isImg = /^image\//.test(file.type);
       var id = U.uid('vf');
       var meta = { id: id, k: isImg ? 'photo' : 'doc', n: file.name || (isImg ? 'Foto vom ' + today : 'Datei'), size: file.size, mime: file.type, d: 'gerade eben', fo: st.folder || null, hasBlob: true };
-      chain = chain.then(function () { return V.putFile(id, file); }).then(function () {
-        D().files.unshift(meta); added++;
-        return V.getFileURL(id, file.type).then(function (u) { meta.url = u; }).catch(function () {});
+      chain = chain.then(function () { same(); written.push(id); return V.putFile(id, file); }).then(function () {
+        same(); d.files.unshift(meta); added++;
+        return V.getFileURL(id, file.type).then(function (u) { if (u) meta.url = u; }).catch(function () {});
       });
     });
-    chain.then(function () { return V.save(); }).then(function () { st.tab = 'files'; st.ff = 'all'; render(); toast(pl(added, 'Datei', 'Dateien') + ' verschlüsselt gespeichert'); });
+    chain.then(function () { same(); return V.save(); }).then(function () { st.tab = 'files'; st.ff = 'all'; render(); toast(pl(added, 'Datei', 'Dateien') + ' verschlüsselt gespeichert'); },
+      function () { abortWrites(written); });
+  }
+  // Ein Ablauf wurde unterbrochen (gesperrt oder gewechselt): schon geschriebene Dateien wieder entfernen
+  function abortWrites(ids) {
+    if (ids.length) DB.delBlobs(ids.map(function (x) { return 'venc:' + x; })).catch(function () {});
+    toast('Abgebrochen. Es wurde nichts gespeichert.');
   }
   function fileShare() {
     var f = byId(D().files, st.fid);
@@ -786,16 +899,24 @@
   function quickSwitch() {
     if (!V.hasDecoy()) { toast('Kein Tarn-Tresor eingerichtet'); return; }
     if (!V.isDecoy()) { V.openDecoyDirect().then(function () { openVaultHome(); }, function () { toast('Tarn-Tresor braucht den Tarn-Code'); }); }
-    else { faceScan(function () { V.unlock; st.screen = 'lock'; st.entry = ''; render(); }); }
+    else relock();
+  }
+  // Alles Entschlüsselte aus Bildschirm und Zwischenspeicher entfernen
+  // keepScreen: Inhalt noch stehen lassen, solange der Tresor ausblendet (wird danach geleert)
+  function forget(keepScreen) {
+    V.lock();
+    clearTimeout(revealT);
+    totpCache = {};
+    if (SCR && !keepScreen) SCR.innerHTML = '';
+    reset();
   }
   function relock() {
-    V.lock();
-    st.screen = V.configured() ? 'lock' : 'intro'; st.entry = ''; hist = []; render();
+    forget();
+    st.screen = V.configured() ? 'lock' : 'intro'; navDir = 'lock'; render();
   }
   function wipeConfirm() {
-    var decoy = V.isDecoy();
-    confirmSheet(decoy ? 'Tarn-Tresor leeren?' : 'Tresor löschen?', decoy ? 'Alle Inhalte im Tarn-Tresor werden gelöscht.' : 'Alle Dinge, Dateien und Passwörter im Tresor werden gelöscht. Das lässt sich nicht rückgängig machen.', function () {
-      V.wipe().then(function () { openVaultHome(); toast(decoy ? 'Tarn-Tresor geleert' : 'Tresor geleert'); });
+    confirmSheet('Tresor löschen?', 'Alle Dinge, Dateien und Passwörter im Tresor werden gelöscht. Das lässt sich nicht rückgängig machen.', function () {
+      V.wipe().then(function () { openVaultHome(); toast('Tresor geleert'); });
     });
   }
   var confirmCb = null;
@@ -817,16 +938,24 @@
     V.lock();
     st.screen = V.configured() ? 'lock' : 'intro';
     document.body.classList.add('vault-open');
+    clearTimeout(closeT); BOX.classList.remove('out');
     BOX.classList.add('on');
+    navDir = 'lock';
     render();
     if (L.faceAvailable) L.faceAvailable().then(function (v) { UI._faceAvail = !!v; });
   };
+  var closeT = null;
   UI.close = function () {
-    V.lock();
-    if (BOX) BOX.classList.remove('on');
+    // Weich ausblenden, dann wirklich schließen. Gesperrt ist sofort, nur das Bild bleibt kurz stehen.
+    var fade = !!BOX && BOX.classList.contains('on') && animOn();
+    forget(fade);
+    if (fade) {
+      BOX.classList.add('out'); clearTimeout(closeT);
+      closeT = setTimeout(function () { SCR.innerHTML = ''; BOX.classList.remove('on', 'out'); }, 260);
+    } else if (BOX) BOX.classList.remove('on');
     document.body.classList.remove('vault-open');
   };
-  UI.isOpen = function () { return BOX && BOX.classList.contains('on'); };
+  UI.isOpen = function () { return !!BOX && BOX.classList.contains('on') && !BOX.classList.contains('out'); };
 
   // Nach Zeit im Hintergrund wieder sperren
   document.addEventListener('visibilitychange', function () {
@@ -834,6 +963,6 @@
     if (document.visibilityState === 'hidden') { UI._hidAt = Date.now(); return; }
     if (!UI._hidAt || !V.isOpen()) return;
     var mins = +(V.opts().lockAfter || 0);
-    if (Date.now() - UI._hidAt >= mins * 60000) { V.lock(); st.screen = 'lock'; st.entry = ''; hist = []; render(); }
+    if (Date.now() - UI._hidAt >= mins * 60000) relock();
   });
 })(window.W = window.W || {});

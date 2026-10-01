@@ -1,18 +1,19 @@
 /* Wo ist was - Service Worker: macht die App offline nutzbar. Automatisch erzeugt von tools/build-sw.ps1 */
-const CACHE = 'wiw-4b30a6d89a5e';
+const CACHE = 'wiw-b84158864b31';
 const ASSETS = [
   './',
   './css/app.css',
   './css/fonts.css',
   './css/splash.css',
-  './fonts/BricolageGrotesque-600-800-latin.woff2',
+  './css/vault.css',
   './fonts/BricolageGrotesque-600-800-latin-ext.woff2',
-  './fonts/Figtree-400-700-latin.woff2',
+  './fonts/BricolageGrotesque-600-800-latin.woff2',
   './fonts/Figtree-400-700-latin-ext.woff2',
-  './fonts/IBMPlexMono-500-latin.woff2',
+  './fonts/Figtree-400-700-latin.woff2',
   './fonts/IBMPlexMono-500-latin-ext.woff2',
-  './fonts/IBMPlexMono-600-latin.woff2',
+  './fonts/IBMPlexMono-500-latin.woff2',
   './fonts/IBMPlexMono-600-latin-ext.woff2',
+  './fonts/IBMPlexMono-600-latin.woff2',
   './icons/apple-touch-icon.png',
   './icons/favicon.png',
   './icons/icon-192.png',
@@ -29,6 +30,7 @@ const ASSETS = [
   './js/search.js',
   './js/sound.js',
   './js/splash.js',
+  './js/themes.js',
   './js/util.js',
   './js/vault-crypto.js',
   './js/vault-store.js',

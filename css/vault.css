@@ -215,6 +215,15 @@
 #vaultui .dial.armed .dknob{transform:rotate(60deg)}
 #vaultui .dial.turn .dknob{transform:rotate(250deg)}
 #vaultui .dialbtn{border:0;background:transparent;padding:0;border-radius:50%}
+#vaultui .dial .dring{transform-box:view-box;transform-origin:50% 50%;transition:transform .35s var(--spring)}
+#vaultui .dial.turn .dring{transform:rotate(-180deg)!important;transition-duration:.55s}
+#vaultui .dial.sm{opacity:.95;margin-bottom:-2px}
+#vaultui .vclose{align-self:flex-start;width:44px;height:44px;border-radius:50%;border:0;background:rgba(236,231,220,.08);color:var(--v-ink);display:grid;place-items:center;padding:0;flex:none}
+#vaultui .vclose svg{width:20px;height:20px}
+#vaultui .vclose:active{transform:scale(.92)}
+#vaultui .kp button.txt{font-family:var(--f-body);font-weight:600;font-size:15px;width:auto;min-width:70px;padding:0 2px;justify-self:center;border-radius:35px;white-space:nowrap}
+#vaultui .kp button.held{background:rgba(199,161,90,.22);transform:scale(.94)}
+@media (prefers-reduced-motion:reduce){#vaultui .dial .dring,#vaultui .dial .dknob{transition:none}}
 
 /* Einstellungen */
 #vaultui .sgt{font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:16px 6px 7px}
@@ -259,7 +268,7 @@
 #vaultui .vw-acts svg{width:21px;height:21px}
 #vaultui .vw-acts .dang{color:#F4A197}
 
-@media (prefers-reduced-motion:reduce){#vaultui *{transition-duration:.01s!important;animation-duration:.01s!important}}
+@media (prefers-reduced-motion:reduce){#vaultui,#vaultui *{transition-duration:.01s!important;animation-duration:.01s!important}}
 
 body.vault-open{overflow:hidden}
 #vaultui .vc-wrap{position:absolute;inset:0;z-index:12;display:none;align-items:flex-end;background:rgba(0,0,0,.4);padding:16px}
@@ -267,3 +276,36 @@ body.vault-open{overflow:hidden}
 #vaultui .vc-card{width:100%;max-width:440px;margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:24px;padding:18px 18px 16px;box-shadow:0 20px 50px rgba(0,0,0,.4)}
 #vaultui .vc-card b{font-family:var(--f-display);font-weight:800;font-size:19px;display:block;margin-bottom:6px}
 #vaultui .vc-card p{margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.45}
+
+/* ---------- Bewegung im Tresor ---------- */
+#vaultui{--v-ease:cubic-bezier(.32,.72,0,1)}
+/* Öffnen: der Tresor legt sich weich über die App; Schließen: blendet aus */
+#vaultui.on{animation:v-open .42s var(--v-ease)}
+#vaultui.out{animation:v-close .26s ease forwards;pointer-events:none}
+@keyframes v-open{from{opacity:0;transform:scale(1.035)}to{opacity:1;transform:none}}
+@keyframes v-close{to{opacity:0;transform:scale(.975)}}
+/* Seiten: tiefer = von rechts, zurück = von links, Tabs = überblenden */
+#vaultui .v-scr.v-in-fwd{animation:v-fwd .36s var(--v-ease)}
+#vaultui .v-scr.v-in-back{animation:v-back .36s var(--v-ease)}
+#vaultui .v-scr.v-in-soft{animation:v-soft .24s ease}
+#vaultui .v-scr.v-in-lock{animation:v-lockin .5s var(--v-ease)}
+#vaultui .v-scr.v-in-lock .dial{animation:v-dialin .7s var(--spring) .05s both}
+#vaultui .v-tin{animation:v-soft .3s ease}
+@keyframes v-fwd{from{opacity:0;transform:translateX(42px)}to{opacity:1;transform:none}}
+@keyframes v-back{from{opacity:0;transform:translateX(-42px)}to{opacity:1;transform:none}}
+@keyframes v-soft{from{opacity:.25}to{opacity:1}}
+@keyframes v-lockin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes v-dialin{from{opacity:0;transform:scale(.6) rotate(-90deg)}to{opacity:1;transform:none}}
+/* Nach dem Entsperren: Inhalte erscheinen nacheinander */
+#vaultui .v-scr.v-in-reveal>*{animation:v-up .5s var(--v-ease) both;animation-delay:calc(var(--i,0) * 45ms)}
+@keyframes v-up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+/* Rückfrage gleitet von unten herein */
+#vaultui .vc-wrap.on{animation:v-soft .2s ease}
+#vaultui .vc-wrap.on .vc-card{animation:v-sheet .38s var(--spring)}
+@keyframes v-sheet{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}
+/* Tasten und Zeilen federn beim Antippen */
+#vaultui .kp button{transition:transform .14s var(--v-ease),background-color .14s}
+#vaultui .prow,#vaultui .srow,#vaultui .bbtn,#vaultui .gbtn,#vaultui .abtn,#vaultui .vmini{transition:transform .14s var(--v-ease),background-color .15s}
+#vaultui .prow:active,#vaultui .bbtn:active,#vaultui .gbtn:active,#vaultui .abtn:active,#vaultui .vmini:active{transform:scale(.97)}
+/* Animationen in den App-Einstellungen ausgeschaltet */
+body.anim-off #vaultui,body.anim-off #vaultui .v-scr,body.anim-off #vaultui .v-scr>*,body.anim-off #vaultui .vc-card,body.anim-off #vaultui .dial{animation:none!important}
