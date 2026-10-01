@@ -104,6 +104,7 @@
   /* ---------- Plattform ---------- */
   U.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   U.isMobile = U.isIOS || /Android|Mobi/i.test(navigator.userAgent);
+  U.isAndroid = /Android/i.test(navigator.userAgent);
   U.isStandalone = function () {
     return window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   };

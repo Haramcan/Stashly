@@ -16,6 +16,7 @@
     sonst: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>',
     chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
     camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
   };
@@ -1885,7 +1886,10 @@
           '<button class="x" type="button" data-rm="' + p.key + '" aria-label="Foto entfernen">×</button>') +
         (i === 0 && !p.uploading ? '<span class="cover">Titel</span>' : '') + '</div>';
     }).join('');
-    if (draft.photos.length < 12) h += '<label class="add-photo" for="photoInput">' + ICON.camera + 'Foto</label>';
+    // Android zeigt bei Mehrfachauswahl keine Kamera an, darum dort Kamera und Galerie getrennt anbieten
+    if (draft.photos.length < 12) h += U.isAndroid
+      ? '<label class="add-photo" for="photoCam">' + ICON.camera + 'Kamera</label><label class="add-photo" for="photoInput">' + ICON.image + 'Galerie</label>'
+      : '<label class="add-photo" for="photoInput">' + ICON.camera + 'Foto</label>';
     $('#ePhotos').innerHTML = h;
     hydrate($('#ePhotos'));
     $('#photoHint').hidden = draft.photos.length < 2;
@@ -1936,7 +1940,9 @@
       if (i > 0) { draft.photos.unshift(draft.photos.splice(i, 1)[0]); renderDraftPhotos(); }
     }
   });
-  $('#photoInput').addEventListener('change', function (e) {
+  $('#photoCam').addEventListener('change', function (e) { addDraftPhotos(e); });
+  $('#photoInput').addEventListener('change', function (e) { addDraftPhotos(e); });
+  function addDraftPhotos(e) {
     var files = Array.prototype.slice.call(e.target.files || []);
     e.target.value = '';
     if (!draft || !files.length) return;
@@ -1970,7 +1976,7 @@
         });
       });
     });
-  });
+  }
 
   /* Belege */
   function renderDraftDocs() {

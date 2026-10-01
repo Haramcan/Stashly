@@ -133,6 +133,7 @@ try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = docum
         <span>Fotos</span>
         <div class="photos" id="ePhotos"></div>
         <input id="photoInput" type="file" accept="image/*" multiple class="sr-only" tabindex="-1">
+        <input id="photoCam" type="file" accept="image/*" capture="environment" class="sr-only" tabindex="-1">
         <div class="suggest" id="eSuggest" hidden></div>
         <small id="photoHint" hidden>Tippe auf ein Foto, um es zum Titelbild zu machen.</small>
       </div>
