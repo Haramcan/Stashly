@@ -16,12 +16,37 @@
 <link rel="icon" type="image/png" href="icons/favicon.png">
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/splash.css">
+<link rel="stylesheet" href="css/vault.css">
 <script>/* Design und Sperre schon vor dem ersten Bild setzen, damit nichts aufblitzt */
 try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = document.documentElement;
   if (wp.look === 'dark' || wp.look === 'light') de.setAttribute('data-look', wp.look);
   if (wp.lock && wp.lockHash) de.classList.add('is-locked'); } catch (e) { /* egal */ }</script>
 </head>
 <body>
+
+<!-- Startanimation: Karton öffnet sich, die Dinge strömen heraus, dann erscheint die App -->
+<div id="startsplash">
+  <div class="sp-stage">
+    <div class="sp-boxwrap">
+      <div class="sp-items"></div>
+      <svg class="sp-carton" viewBox="0 0 120 120" aria-label="Wo ist was">
+        <rect x="34" y="46" width="52" height="16" rx="2" fill="var(--inside)"/>
+        <g class="c-body">
+          <rect x="32" y="56" width="56" height="44" rx="3" fill="var(--carton)"/>
+          <path d="M32 56 h56 v6 H32 Z" fill="var(--carton-sh)" opacity=".55"/>
+          <path d="M60 62 V100" stroke="var(--carton-dk)" stroke-width="1.4" opacity=".7"/>
+          <rect x="52" y="70" width="16" height="7" rx="1" fill="#fff" opacity=".5"/>
+        </g>
+        <path class="c-flapL" d="M34 56 h26 v-8 a2 2 0 0 0-2-2 H36 a2 2 0 0 0-2 2 Z" fill="var(--carton)"/>
+        <path class="c-flapR" d="M60 56 h26 v-8 a2 2 0 0 1 2-2 H62 a2 2 0 0 1-2 2 Z" fill="var(--carton)"/>
+      </svg>
+    </div>
+    <div class="sp-word"><b>Wo ist was</b></div>
+    <div class="sp-tag">Alles hat seinen Platz</div>
+  </div>
+</div>
+<script src="js/splash.js"></script>
 
 <header class="top" id="top">
   <div class="topbar">
@@ -392,6 +417,9 @@ try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = docum
 <script src="js/sound.js"></script>
 <script src="js/voice.js"></script>
 <script src="js/lock.js"></script>
+<script src="js/vault-crypto.js"></script>
+<script src="js/vault-store.js"></script>
+<script src="js/vault-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

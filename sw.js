@@ -1,9 +1,10 @@
 /* Wo ist was - Service Worker: macht die App offline nutzbar. Automatisch erzeugt von tools/build-sw.ps1 */
-const CACHE = 'wiw-cbc96518e8c5';
+const CACHE = 'wiw-4b30a6d89a5e';
 const ASSETS = [
   './',
   './css/app.css',
   './css/fonts.css',
+  './css/splash.css',
   './fonts/BricolageGrotesque-600-800-latin.woff2',
   './fonts/BricolageGrotesque-600-800-latin-ext.woff2',
   './fonts/Figtree-400-700-latin.woff2',
@@ -27,7 +28,11 @@ const ASSETS = [
   './js/scanner.js',
   './js/search.js',
   './js/sound.js',
+  './js/splash.js',
   './js/util.js',
+  './js/vault-crypto.js',
+  './js/vault-store.js',
+  './js/vault-ui.js',
   './js/voice.js',
   './lib/jspdf.umd.min.js',
   './lib/jsQR.js',

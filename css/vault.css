@@ -1,0 +1,269 @@
+/* Wo ist was – Tresor: eigener Vollbild-Bereich. Nutzt die App-Farben (--bg, --ink, --accent …);
+   der Tresor selbst hat bewusst einen dunklen Graphit-Messing-Look in hell wie dunkel. */
+#vaultui{
+  position:fixed;inset:0;z-index:320;display:none;flex-direction:column;background:var(--bg);color:var(--ink);
+  --v-bg:#131619;--v-bg2:#1D2226;--v-key:rgba(236,231,220,.07);--v-line:rgba(236,231,220,.12);
+  --v-ink:#ECE7DC;--v-muted:#A6A298;--v-brass:#C7A15A;--v-brass-2:#E6C98E;--v-brass-ink:#1C160A;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+#vaultui.on{display:flex}
+#vaultui *{box-sizing:border-box}
+#vaultui .v-top{flex:none;display:flex;align-items:center;gap:4px;padding:6px 10px 8px;min-height:52px}
+#vaultui .v-top h2{margin:0;flex:1;min-width:0;font-family:var(--f-display);font-weight:800;font-size:23px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vaultui .v-ib{border:0;background:transparent;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:var(--ink);flex:none;padding:0}
+#vaultui .v-ib svg{width:23px;height:23px}
+#vaultui .v-scr{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 16px 40px;-webkit-overflow-scrolling:touch}
+#vaultui .v-scr.full{display:flex;flex-direction:column;padding-bottom:28px}
+
+#vaultui .vrow,#vaultui .fr{display:flex;align-items:center;gap:12px;width:100%;text-align:left;color:var(--ink)}
+#vaultui .prow{display:flex;align-items:center;gap:12px;width:100%;padding:9px 10px 9px 9px;border-radius:18px;background:var(--surface);border:1px solid var(--glass-line);margin-bottom:8px;text-align:left;color:var(--ink)}
+#vaultui .prow:active{transform:scale(.985)}
+#vaultui .prow>svg{width:18px;height:18px;color:var(--muted);flex:none}
+#vaultui .pt{flex:1;min-width:0;display:grid;gap:1px}
+#vaultui .pt b{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vaultui .pt small{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vaultui .th{width:46px;height:46px;border-radius:14px;flex:none;display:grid;place-items:center;overflow:hidden;background:linear-gradient(150deg,color-mix(in srgb,var(--c) 70%,#fff 30%),var(--c));color:#fff;font-family:var(--f-display);font-weight:800;font-size:19px}
+#vaultui .th img{width:100%;height:100%;object-fit:cover}
+#vaultui .th svg{width:20px;height:20px}
+#vaultui .av{width:44px;height:44px;border-radius:14px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,var(--surface));color:var(--c);font-family:var(--f-display);font-weight:800;font-size:18px;border:1px solid color-mix(in srgb,var(--c) 30%,transparent)}
+#vaultui .av svg{width:21px;height:21px}
+#vaultui .pill{flex:none;padding:3px 8px;border-radius:999px;font-size:11.5px;font-weight:800}
+#vaultui .pill.bad{background:var(--danger-soft);color:var(--danger)}
+#vaultui .pill.dup{background:var(--warn-soft);color:var(--warn)}
+
+#vaultui .empty{padding:22px 16px;border-radius:18px;background:var(--surface);border:1px solid var(--glass-line);color:var(--muted);text-align:center;font-size:14px;margin-bottom:10px}
+#vaultui .hint{font-size:13px;color:var(--muted);margin:10px 4px 0;line-height:1.4}
+#vaultui .shead{display:flex;align-items:baseline;justify-content:space-between;margin:16px 4px 8px}
+#vaultui .shead h3{margin:0;font-family:var(--f-display);font-weight:800;font-size:17px}
+#vaultui .shead small{color:var(--muted);font-weight:700;font-size:13px}
+
+/* Kopf im offenen Tresor */
+#vaultui .vhead{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 14px;border-radius:18px;background:linear-gradient(150deg,var(--v-bg2),var(--v-bg));color:var(--v-ink);margin-bottom:12px;border:1px solid rgba(199,161,90,.3)}
+#vaultui .vstat{flex:1;display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;min-width:0}
+#vaultui .vstat small{display:block;font-weight:500;color:var(--v-muted);font-size:12px}
+#vaultui .vsw-ib{border:0;background:transparent;color:var(--v-brass-2);width:30px;height:30px;display:grid;place-items:center;flex:none;padding:0}
+#vaultui .vsw-ib svg{width:18px;height:18px}
+#vaultui .vmini{display:flex;align-items:center;gap:6px;min-height:38px;padding:0 13px;border-radius:999px;border:1px solid var(--v-line);background:var(--v-key);color:var(--v-ink);font-weight:700;font-size:13.5px;flex:none}
+#vaultui .vmini svg{width:16px;height:16px}
+#vaultui .vmini.ic{width:38px;padding:0;justify-content:center}
+
+/* Tabs / Chips */
+#vaultui .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:4px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);margin-bottom:12px}
+#vaultui .seg button{border:0;background:transparent;border-radius:999px;min-height:38px;padding:0 4px;min-width:0;font-weight:700;font-size:13px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap}
+#vaultui .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#vaultui .seg small{font-weight:700;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#vaultui .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+#vaultui .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 11px;font-weight:700;font-size:13px;min-height:34px;color:var(--ink)}
+#vaultui .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#vaultui .chip small{opacity:.7;margin-left:4px;font-variant-numeric:tabular-nums}
+
+#vaultui .pwsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+#vaultui .pwsum div{padding:10px 12px;border-radius:16px;background:var(--surface);border:1px solid var(--glass-line)}
+#vaultui .pwsum b{display:block;font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums}
+#vaultui .pwsum small{font-size:12px;color:var(--muted);font-weight:600}
+#vaultui .pwsum .bad b{color:var(--danger)}
+#vaultui .pwsum .dup b{color:var(--warn)}
+
+#vaultui .psearch{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);margin-bottom:10px}
+#vaultui .psearch svg{width:18px;height:18px;flex:none}
+#vaultui .psearch input{border:0;background:transparent;outline:0;flex:1;min-width:0;font-size:15.5px;color:var(--ink);padding:10px 0}
+
+#vaultui .addbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;margin-top:12px;border-radius:999px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:15px}
+#vaultui .addbtn svg{width:19px;height:19px}
+#vaultui .addbtn:disabled{opacity:.5}
+
+/* Dateien */
+#vaultui .store{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:var(--surface);border:1px solid var(--glass-line);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.35}
+#vaultui .store svg{width:18px;height:18px;color:var(--accent);flex:none}
+#vaultui .store b{color:var(--ink)}
+#vaultui .fold{display:flex;gap:8px;overflow-x:auto;margin:6px -16px 2px;padding:2px 16px 6px;scrollbar-width:none}
+#vaultui .fold::-webkit-scrollbar{display:none}
+#vaultui .fcard{flex:none;width:90px;display:grid;justify-items:start;gap:2px;padding:10px;border-radius:16px;border:1px solid var(--glass-line);background:var(--surface);text-align:left;color:var(--ink)}
+#vaultui .fcard svg{width:20px;height:20px;color:var(--accent);margin-bottom:4px}
+#vaultui .fcard b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#vaultui .fcard small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#vaultui .fcard[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#vaultui .fcard[aria-pressed="true"] svg,#vaultui .fcard[aria-pressed="true"] small{color:var(--accent-ink)}
+#vaultui .fcard.add{border-style:dashed;background:transparent}
+#vaultui .pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;border-radius:14px;overflow:hidden}
+#vaultui .ptile{position:relative;aspect-ratio:1;border:0;padding:0;display:grid;place-items:center;background:linear-gradient(150deg,var(--c1),var(--c2));color:rgba(255,255,255,.9);overflow:hidden}
+#vaultui .ptile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#vaultui .ptile svg{width:28px;height:28px;opacity:.85}
+#vaultui .ptile small{position:absolute;left:6px;right:6px;bottom:5px;font-size:10px;font-weight:700;line-height:1.2;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vaultui .dicon{width:44px;height:52px;border-radius:8px;flex:none;position:relative;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:end center;padding-bottom:6px;overflow:hidden}
+#vaultui .dicon::before{content:"";position:absolute;top:9px;left:8px;right:8px;height:2px;background:var(--line);box-shadow:0 6px 0 var(--line),0 12px 0 var(--line)}
+#vaultui .dicon b{position:relative;font:800 9.5px/1 var(--f-body);letter-spacing:.04em;padding:3px 5px;border-radius:4px;background:var(--danger);color:var(--surface)}
+#vaultui .dicon.word b{background:var(--accent)}
+#vaultui .dicon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+
+/* Passwort-/Notiz-Details, Formularzeilen */
+#vaultui .pwhead{display:flex;align-items:center;gap:14px;margin:2px 0 16px}
+#vaultui .pwhead .av{width:60px;height:60px;border-radius:18px;font-size:26px}
+#vaultui .pwhead h3{margin:0;font-family:var(--f-display);font-weight:800;font-size:24px;letter-spacing:-.02em;line-height:1.1}
+#vaultui .pwhead small{color:var(--muted);font-size:14px}
+#vaultui .grp{display:grid;border-radius:18px;background:var(--surface);border:1px solid var(--glass-line);overflow:hidden;margin-bottom:12px}
+#vaultui .fr{padding:10px 8px 10px 14px;border-top:1px solid var(--line);min-height:56px}
+#vaultui .fr:first-child{border-top:0}
+#vaultui .fr .fl{flex:1;min-width:0;display:grid;gap:1px}
+#vaultui .fr .fl small{font-size:12.5px;color:var(--muted);font-weight:600}
+#vaultui .fr .fl b{font-weight:600;font-size:15.5px;overflow-wrap:anywhere}
+#vaultui .fr .fl b.mono{font-family:var(--f-mono);font-weight:500;letter-spacing:.02em}
+#vaultui .fr .fl b.mask{letter-spacing:.18em}
+#vaultui .ib{width:40px;height:40px;border-radius:50%;border:0;background:var(--surface-2);display:grid;place-items:center;color:var(--accent);flex:none;padding:0}
+#vaultui .ib svg{width:19px;height:19px}
+#vaultui .code{font-family:var(--f-mono);font-weight:600;font-size:19px;letter-spacing:.06em;color:var(--accent);font-variant-numeric:tabular-nums;flex:none}
+#vaultui .tring{width:26px;height:26px;border-radius:50%;flex:none;background:conic-gradient(var(--accent) calc(var(--p,1) * 360deg),var(--line) 0);-webkit-mask:radial-gradient(circle,transparent 55%,#000 57%);mask:radial-gradient(circle,transparent 55%,#000 57%)}
+#vaultui .tring.low{background:conic-gradient(var(--danger) calc(var(--p,1) * 360deg),var(--line) 0)}
+#vaultui .str{padding:12px 14px;display:grid;gap:8px}
+#vaultui .str .sl{display:flex;justify-content:space-between;font-size:13px;font-weight:700}
+#vaultui .str .sl span{color:var(--muted)}
+#vaultui .meter{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+#vaultui .meter i{height:6px;border-radius:3px;background:var(--line)}
+#vaultui .meter[data-s="0"] i:nth-child(-n+1),#vaultui .meter[data-s="1"] i:nth-child(-n+1){background:var(--danger)}
+#vaultui .meter[data-s="2"] i:nth-child(-n+2){background:var(--warn)}
+#vaultui .meter[data-s="3"] i:nth-child(-n+3){background:var(--accent)}
+#vaultui .meter[data-s="4"] i{background:var(--good,#2E7D4F)}
+#vaultui .wbox{display:flex;gap:10px;padding:12px 14px;border-radius:16px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:600;line-height:1.4;margin-bottom:12px}
+#vaultui .wbox svg{width:19px;height:19px;flex:none;margin-top:1px}
+#vaultui .rowbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#vaultui .abtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:14.5px;color:var(--ink);padding:0 14px}
+#vaultui .abtn svg{width:18px;height:18px}
+#vaultui .abtn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#vaultui .abtn.dang{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+#vaultui .abtn.full{grid-column:1/-1}
+#vaultui .foot{font-size:12.5px;color:var(--muted);text-align:center;margin:12px 0 0}
+#vaultui .fld{display:grid;gap:5px;padding:10px 14px;border-top:1px solid var(--line)}
+#vaultui .fld:first-child{border-top:0}
+#vaultui .fld label{font-size:12.5px;font-weight:700;color:var(--muted)}
+#vaultui .fld input{border:0;background:transparent;outline:0;font-size:16px;padding:2px 0;min-width:0;width:100%;color:var(--ink)}
+#vaultui .pwin{display:flex;align-items:center;gap:6px}
+#vaultui .pwin input{flex:1;font-family:var(--f-mono);font-size:15.5px}
+#vaultui .gen{padding:14px;display:grid;gap:12px}
+#vaultui .gen .gl{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px}
+#vaultui .gen .gl output{font-family:var(--f-mono);font-weight:600;color:var(--accent)}
+#vaultui .gen input[type=range]{width:100%;accent-color:var(--accent)}
+#vaultui .opt{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14.5px;font-weight:600}
+#vaultui .opt small{display:block;font-weight:500;color:var(--muted);font-size:12.5px}
+#vaultui .sw{position:relative;width:51px;height:31px;border-radius:999px;border:0;background:var(--switch-off);flex:none;padding:0;transition:background-color .2s}
+#vaultui .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .25s var(--spring)}
+#vaultui .sw[aria-checked="true"]{background:var(--accent)}
+#vaultui .sw[aria-checked="true"]::after{transform:translateX(20px)}
+
+/* Detail eines Dings */
+#vaultui .dph{position:relative;height:170px;border-radius:24px;display:grid;place-items:center;background:linear-gradient(150deg,color-mix(in srgb,var(--c) 65%,#fff 35%),var(--c));color:#fff;font-family:var(--f-display);font-weight:800;font-size:64px;margin-bottom:14px;overflow:hidden}
+#vaultui .dph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#vaultui .dlock{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:rgba(19,22,25,.72);color:var(--v-brass-2);font:700 12.5px/1 var(--f-body)}
+#vaultui .dlock svg{width:14px;height:14px}
+#vaultui .dname{margin:0 0 8px;font-family:var(--f-display);font-weight:800;font-size:25px;letter-spacing:-.02em;line-height:1.1}
+#vaultui .dacts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+#vaultui .dact{display:flex;align-items:center;gap:10px;min-height:56px;padding:9px 12px 9px 9px;border-radius:16px;border:1px solid var(--glass-line);background:var(--surface);font-size:14px;font-weight:700;color:var(--ink)}
+#vaultui .dact span{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+#vaultui .dact svg{width:20px;height:20px}
+#vaultui .dmeta{margin:0;display:grid;border-radius:18px;background:var(--surface);border:1px solid var(--glass-line);overflow:hidden}
+#vaultui .dmeta div{display:flex;justify-content:space-between;gap:16px;padding:12px 14px;border-top:1px solid var(--line)}
+#vaultui .dmeta div:first-child{border-top:0}
+#vaultui .dmeta dt{color:var(--muted);font-size:14px}
+#vaultui .dmeta dd{margin:0;font-weight:600;font-size:14px;text-align:right;overflow-wrap:anywhere}
+
+/* Vollbild-Flächen (Einrichten, Sperre, Schlüssel) im dunklen Look */
+#vaultui.v-dark{background:radial-gradient(120% 55% at 50% -8%,rgba(199,161,90,.22),transparent 60%),var(--v-bg);color:var(--v-ink)}
+#vaultui.v-dark .v-top h2,#vaultui.v-dark .v-ib{color:var(--v-ink)}
+#vaultui .vhero{display:grid;justify-items:center;gap:8px;text-align:center;margin-top:10px}
+#vaultui .vhero h3{margin:6px 0 0;font-family:var(--f-display);font-weight:800;font-size:25px;letter-spacing:-.02em}
+#vaultui .vhero p{margin:0;color:var(--v-muted);font-size:14.5px;max-width:30ch}
+#vaultui .vpoints{display:grid;gap:10px;margin:14px 0}
+#vaultui .vpoint{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:18px;background:var(--v-key);border:1px solid var(--v-line)}
+#vaultui .vpoint span{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(199,161,90,.16);color:var(--v-brass-2);flex:none}
+#vaultui .vpoint svg{width:18px;height:18px}
+#vaultui .vpoint p{margin:0;font-size:14px;line-height:1.35;color:var(--v-ink)}
+#vaultui .vpoint p b{display:block;font-size:15px}
+#vaultui .vpoint p small{color:var(--v-muted);font-size:13px}
+#vaultui .spacer{flex:1;min-height:14px}
+#vaultui .bbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:54px;border:0;border-radius:999px;background:linear-gradient(180deg,var(--v-brass-2),var(--v-brass));color:var(--v-brass-ink);font-weight:800;font-size:16px;margin-top:6px}
+#vaultui .bbtn:disabled{opacity:.4}
+#vaultui .bbtn svg,#vaultui .gbtn svg{width:19px;height:19px}
+#vaultui .gbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:1px solid var(--v-line);border-radius:999px;background:transparent;color:var(--v-ink);font-weight:700;font-size:15px;margin-top:8px}
+#vaultui .vtxt{border:0;background:transparent;color:var(--v-ink);font-weight:700;font-size:15px;padding:8px 2px}
+#vaultui .vlink{border:0;background:transparent;color:var(--v-brass-2);font-weight:700;font-size:14.5px;padding:12px;justify-self:center}
+#vaultui .vsub{text-align:center;color:var(--v-muted);font-size:14px;margin:6px 0 0;min-height:1.4em}
+#vaultui .dots{display:flex;gap:14px;justify-content:center;margin:16px 0 4px}
+#vaultui .dots i{width:13px;height:13px;border-radius:50%;border:2px solid var(--v-ink);transition:background-color .15s,transform .2s var(--spring)}
+#vaultui .dots i.on{background:var(--v-brass-2);border-color:var(--v-brass-2);transform:scale(1.12)}
+#vaultui .dots.shake{animation:v-shake .4s}
+@keyframes v-shake{25%{transform:translateX(-7px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+#vaultui .kp{display:grid;grid-template-columns:repeat(3,70px);gap:12px 24px;justify-content:center;margin-top:8px}
+#vaultui .kp button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;width:70px;height:70px;border-radius:50%;border:1px solid var(--v-line);background:var(--v-key);color:var(--v-ink);font-family:var(--f-display);font-weight:700;font-size:28px;display:grid;place-items:center;padding:0}
+#vaultui .kp button:active{transform:scale(.9);background:rgba(236,231,220,.18)}
+#vaultui .kp button.plain{background:transparent;border-color:transparent}
+#vaultui .kp button svg{width:28px;height:28px}
+#vaultui .kp .blank{visibility:hidden}
+#vaultui .rkey{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+#vaultui .rkey span{position:relative;display:grid;place-items:center;padding:14px 0 10px;border-radius:12px;background:var(--v-key);border:1px solid var(--v-line);font-family:var(--f-mono);font-weight:600;font-size:16px;letter-spacing:.1em;font-variant-numeric:tabular-nums;color:var(--v-ink)}
+#vaultui .rkey span i{position:absolute;top:3px;left:7px;font:600 10px/1.2 var(--f-body);color:var(--v-muted);font-style:normal}
+#vaultui .vwarn{display:flex;gap:10px;padding:12px 14px;border-radius:16px;background:rgba(242,174,152,.1);border:1px solid rgba(242,174,152,.3);color:#F2AE98;font-size:13.5px;line-height:1.4}
+#vaultui .vwarn svg{width:20px;height:20px;flex:none;margin-top:1px}
+#vaultui .vwarn b{color:var(--v-ink)}
+#vaultui .vcheck{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:16px;border:1px solid var(--v-line);font-weight:600;font-size:14.5px;margin-top:12px;color:var(--v-ink)}
+#vaultui .vcheck input{width:22px;height:22px;accent-color:var(--v-brass);flex:none;margin:0}
+#vaultui .vrow2{display:flex;gap:8px}
+#vaultui .vrow2 .gbtn{flex:1;margin-top:0}
+#vaultui .kin{width:100%;min-height:54px;border-radius:16px;border:1px solid var(--v-line);background:var(--v-key);color:var(--v-ink);font-family:var(--f-mono);font-weight:600;font-size:16px;letter-spacing:.08em;text-align:center;text-transform:uppercase;padding:10px;margin-top:12px}
+#vaultui .kin:focus{outline:2px solid var(--v-brass)}
+
+/* Drehrad */
+#vaultui .dial .dknob{transform-box:fill-box;transform-origin:center;transition:transform .7s cubic-bezier(.6,0,.2,1)}
+#vaultui .dial.armed .dknob{transform:rotate(60deg)}
+#vaultui .dial.turn .dknob{transform:rotate(250deg)}
+#vaultui .dialbtn{border:0;background:transparent;padding:0;border-radius:50%}
+
+/* Einstellungen */
+#vaultui .sgt{font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:16px 6px 7px}
+#vaultui .srow{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-top:1px solid var(--line);min-height:56px;width:100%;border-left:0;border-right:0;border-bottom:0;background:transparent;text-align:left;color:var(--ink)}
+#vaultui .grp>.srow:first-child{border-top:0}
+#vaultui .srow .fl{flex:1;min-width:0;display:grid;gap:2px}
+#vaultui .srow .fl b{font-weight:600;font-size:15px}
+#vaultui .srow .fl small{font-size:12.5px;color:var(--muted);line-height:1.35}
+#vaultui .srow>svg{width:18px;height:18px;color:var(--muted);flex:none}
+#vaultui .srow.dang .fl b{color:var(--danger)}
+#vaultui .srow.col{flex-direction:column;align-items:stretch}
+#vaultui .srow.col .top{display:flex;align-items:center;gap:12px}
+#vaultui .mseg{display:flex;padding:3px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+#vaultui .mseg button{border:0;background:transparent;border-radius:999px;padding:6px 10px;font-size:12.5px;font-weight:700;color:var(--muted);flex:1}
+#vaultui .mseg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#vaultui .hi{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+#vaultui .hi svg{width:18px;height:18px}
+#vaultui .hi.bad{background:var(--danger-soft);color:var(--danger)}
+
+/* Face-ID-Overlay */
+#vaultui .fid{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:rgba(10,12,14,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .2s}
+#vaultui .fid.on{opacity:1;pointer-events:auto}
+#vaultui .fid div{width:118px;height:118px;border-radius:32px;background:rgba(40,44,48,.95);display:grid;place-items:center;color:var(--v-brass-2)}
+#vaultui .fid svg{width:66px;height:66px}
+#vaultui .fid .fc{stroke-dasharray:80;stroke-dashoffset:80}
+#vaultui .fid.on .fc{animation:v-draw .9s ease forwards}
+#vaultui .fid .ok{display:none}
+#vaultui .fid.done .scan{display:none}
+#vaultui .fid.done .ok{display:block}
+@keyframes v-draw{to{stroke-dashoffset:0}}
+
+/* Vorschau Dokument/Foto */
+#vaultui .viewer{background:#050606;color:#F1F1EE}
+#vaultui .vw-media{flex:1;display:grid;place-items:center;min-height:0;padding:10px 0}
+#vaultui .vw-photo{position:relative;width:100%;max-height:60vh;aspect-ratio:3/4;border-radius:14px;background:#111;display:grid;place-items:center;overflow:hidden}
+#vaultui .vw-photo img{width:100%;height:100%;object-fit:contain}
+#vaultui .vw-meta{text-align:center;font-size:13px;color:#A8A8A2;line-height:1.45;padding:4px 0}
+#vaultui .vw-meta b{display:block;color:#F1F1EE;font-size:15.5px;margin-bottom:2px;overflow-wrap:anywhere}
+#vaultui .vw-acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:6px}
+#vaultui .vw-acts button{display:grid;justify-items:center;gap:6px;border:0;background:transparent;color:#F1F1EE;font-size:12.5px;font-weight:700;padding:4px 0}
+#vaultui .vw-acts span{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1)}
+#vaultui .vw-acts svg{width:21px;height:21px}
+#vaultui .vw-acts .dang{color:#F4A197}
+
+@media (prefers-reduced-motion:reduce){#vaultui *{transition-duration:.01s!important;animation-duration:.01s!important}}
+
+body.vault-open{overflow:hidden}
+#vaultui .vc-wrap{position:absolute;inset:0;z-index:12;display:none;align-items:flex-end;background:rgba(0,0,0,.4);padding:16px}
+#vaultui .vc-wrap.on{display:flex}
+#vaultui .vc-card{width:100%;max-width:440px;margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:24px;padding:18px 18px 16px;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+#vaultui .vc-card b{font-family:var(--f-display);font-weight:800;font-size:19px;display:block;margin-bottom:6px}
+#vaultui .vc-card p{margin:0 0 14px;color:var(--muted);font-size:14.5px;line-height:1.45}

@@ -679,7 +679,7 @@ label.set-row,button.set-row{cursor:pointer;width:100%;border:0;background:trans
   background:radial-gradient(120% 70% at 20% 0%,color-mix(in srgb,var(--accent) 35%,transparent),transparent 60%),radial-gradient(90% 60% at 100% 100%,color-mix(in srgb,var(--c-places) 30%,transparent),transparent 60%),var(--bg);
   transition:opacity .35s var(--ease),transform .45s var(--ease)}
 html.is-locked #lock[hidden]{display:grid!important}
-html.is-locked body>:not(#lock):not(#toast):not(script){visibility:hidden}
+html.is-locked body>:not(#lock):not(#toast):not(#startsplash):not(script){visibility:hidden}
 .lock.leaving{opacity:0;transform:scale(1.08)}
 .lk-top{display:grid;justify-items:center;gap:8px;text-align:center;align-self:center}
 .lk-ic{width:64px;height:64px;border-radius:20px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;box-shadow:var(--glass-shadow);margin-bottom:6px}
@@ -715,3 +715,14 @@ html.is-locked body>:not(#lock):not(#toast):not(script){visibility:hidden}
   .petal,body.nav-open .petal,.orb,.orb .ic,.orb .x,.nav-scrim,.switch::after,.nbub,.npill,.vcard,.lock{transition-duration:.01s!important;transition-delay:0s!important}
   .anim *,.ring .bell,.jiggle,.sonar.go,.fresh,.orb.pulse,.orb.pulse::before,.orb.pulse::after,.vmic .vr,.voice.talking .vwave i{animation:none!important}
 }
+
+/* Archiv-Bildschirm */
+.arch-row .ric{overflow:hidden;font-weight:800;font-size:15px}
+.ric-photo{padding:0}
+.ric-photo img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.arch-row .row-meta.late{color:var(--danger);font-weight:700}
+.vault-card{background:linear-gradient(150deg,#1D2226,#131619);color:#ECE7DC;border-color:rgba(199,161,90,.35)}
+.vault-card .row-name{color:#ECE7DC}
+.vault-card .row-meta{color:#A6A298}
+.vault-card .vault-ric{background:rgba(199,161,90,.16);color:#E6C98E}
+.vault-card .chev{color:#C7A15A}
