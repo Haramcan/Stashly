@@ -1,7 +1,7 @@
 /* Wo ist was – Tresor: Oberfläche (Vollbild). Daten kommen verschlüsselt aus W.Vault. */
 (function (W) {
   'use strict';
-  var U = W.U, V = W.Vault, C = W.VaultCrypto, L = W.Lock;
+  var U = W.U, V = W.Vault, C = W.VaultCrypto, L = W.Lock, DB = W.DB;
   var esc = U.esc;
   var UI = W.VaultUI = {};
 
@@ -506,6 +506,34 @@
     st.screen = 'items'; st.tab = 'items'; st.pwv = 'pw'; st.ff = 'all'; st.folder = null; hist = [];
     loadFileURLs();
     render();
+    if (st.pending && st.pending.importItem && !V.isDecoy()) { var pend = st.pending; st.pending = null; importItem(pend); }
+  }
+  // Einen Gegenstand aus der App verschlüsselt übernehmen (Fotos aus der App-Datenbank verschlüsseln)
+  function importItem(pend) {
+    var snap = pend.importItem, id = U.uid('vi');
+    var item = { id: id, n: snap.name, place: snap.place || '', note: snap.note || '', c: pickColor() };
+    var photos = (snap.photoIds || []), docs = (snap.docs || []);
+    var chain = Promise.resolve();
+    photos.forEach(function (p, i) {
+      chain = chain.then(function () { return DB.getBlob(p.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf');
+        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'photo', n: snap.name + (photos.length > 1 ? ' ' + (i + 1) : ''), size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      });
+    });
+    docs.forEach(function (d) {
+      chain = chain.then(function () { return DB.getBlob(d.id); }).then(function (blob) {
+        if (!blob) return; var fid = U.uid('vf');
+        return V.putFile(fid, blob).then(function () { D().files.unshift({ id: fid, k: 'doc', n: d.name, size: blob.size, mime: blob.type, d: 'gerade eben', fo: null, link: id, hasBlob: true }); });
+      });
+    });
+    chain.then(function () {
+      D().items.unshift(item);
+      return V.save();
+    }).then(function () {
+      if (pend.onImported) try { pend.onImported(); } catch (e) {}
+      loadFileURLs(); render();
+      toast('„' + snap.name + '“ liegt jetzt verschlüsselt im Tresor');
+    });
   }
   // Datei-URLs für Vorschaubilder nachladen (entschlüsselt)
   function loadFileURLs() {
@@ -781,10 +809,11 @@
 
   /* ---------- Öffentliche API ---------- */
   UI._faceAvail = false;
-  UI.open = function () {
+  UI.open = function (opts) {
     if (!V.available()) { toast('Verschlüsselung geht in diesem Browser nicht.'); return; }
     build();
     reset();
+    if (opts && opts.importItem) st.pending = { importItem: opts.importItem, onImported: opts.onImported };
     V.lock();
     st.screen = V.configured() ? 'lock' : 'intro';
     document.body.classList.add('vault-open');

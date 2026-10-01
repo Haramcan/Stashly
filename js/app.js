@@ -1467,6 +1467,11 @@
     if ((it.tags || []).length) h += '<div class="tags">' + it.tags.map(function (t) { return '<button class="tag" type="button" data-tag="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>';
     if (it.notes) h += '<p class="notes">' + esc(it.notes) + '</p>';
     h += placeTimeline(it);
+    if (W.VaultUI) {
+      h += '<div class="menu-list" style="margin-top:14px"><button class="row" type="button" data-dact="tovault"><span class="ric">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/></svg>' +
+        '</span><span class="row-txt"><span class="row-name">In den Tresor legen</span><span class="row-meta">Verschlüsselt wegschließen, mit Fotos. Danach nur mit dem Tresor-Code sichtbar.</span></span>' + ICON.chev + '</button></div>';
+    }
     if ((it.history || []).length) {
       h += '<details class="plain"><summary>Verlauf (' + it.history.length + ')</summary><ul class="hist" style="margin-top:8px">' + it.history.slice().reverse().slice(0, 20).map(function (e) {
         return '<li><b>' + new Date(e.t).toLocaleDateString('de-DE') + '</b> ' + esc(e.text) + '</li>';
@@ -1536,8 +1541,22 @@
         if (!v) return;
         updateItem(it, { lentTo: v, lentSince: U.today() }, 'Verliehen an ' + v).then(function () { U.toast('Verliehen an ' + v); });
       });
+      if (a === 'tovault') sendToVault(it);
     }
   });
+  /* Gegenstand verschlüsselt in den Tresor verschieben: Schnappschuss an den Tresor übergeben,
+     der die Fotos verschlüsselt. Erst wenn das geklappt hat, wird das Original gelöscht. */
+  function sendToVault(it) {
+    var snap = {
+      name: it.name, place: M.locText(it), note: it.notes || '',
+      value: it.value, photoIds: (it.photos || []).map(function (p) { return { id: p.id, t: p.t }; }),
+      docs: (it.docs || []).map(function (d) { return { id: d.id, name: d.name, type: d.type, size: d.size }; })
+    };
+    closeSheet($('#sheetDetail'));
+    W.VaultUI.open({ importItem: snap, onImported: function () {
+      DB.del('items', it.id).then(function () { DB.delBlobs(blobIdsOf(it)); });
+    } });
+  }
   function openDoc(it, docId) {
     var d = (it.docs || []).filter(function (x) { return x.id === docId; })[0];
     if (!d) return;
