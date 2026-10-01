@@ -436,13 +436,13 @@
     return { title: 'Tarn-Tresor', html:
       '<p class="hint" style="margin:0 4px 12px">Wenn dich jemand drängt, den Tresor zu öffnen, gibst du den Tarn-Code ein. Dann sieht er einen zweiten, harmlosen Tresor. Dein echter Tresor bleibt unsichtbar.</p>' +
       '<div class="grp"><div class="srow"><span class="fl"><b>Tarn-Tresor</b><small>' + (has ? 'Ist eingeschaltet' : 'Ist ausgeschaltet') + '</small></span>' + swc('tarnOn', has) + '</div>' +
-      (has ? '<button type="button" class="srow" data-a="tarncode"><span class="fl"><b>Tarn-Code ändern</b><small>Muss anders sein als dein echter Code</small></span>' + ic('chev') + '</button>' +
-        '<div class="srow col"><div class="top"><span class="fl"><b>Tarn-Tresor öffnet sich</b><small>' + (o.tarnMode === 'any' ? 'Bei jedem Code außer deinem echten.' : 'Nur mit dem Tarn-Code.') + '</small></span></div>' +
+      (has ? '<div class="srow col"><div class="top"><span class="fl"><b>Tarn-Tresor öffnet sich</b><small>' + (o.tarnMode === 'any' ? 'Bei jedem Code außer deinem echten.' : 'Nur mit dem Tarn-Code.') + '</small></span></div>' +
         '<div class="mseg" role="group">' + [['code', 'Nur Tarn-Code'], ['any', 'Jeder falsche Code']].map(function (x) { return '<button type="button" data-tm="' + x[0] + '" aria-pressed="' + (o.tarnMode === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
         (UI._faceAvail ? '<div class="srow col"><div class="top"><span class="fl"><b>Face ID öffnet</b><small>' + (o.faceReal ? 'Den echten Tresor.' : 'Den Tarn-Tresor. Für den echten vorher aufs Drehrad tippen oder Face ID gedrückt halten.') + '</small></span></div>' +
         '<div class="mseg" role="group">' + [['tarn', 'Tarn-Tresor'], ['real', 'Echten Tresor']].map(function (x) { return '<button type="button" data-ft="' + x[0] + '" aria-pressed="' + ((x[0] === 'real') === !!o.faceReal) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' : '') +
         '<div class="srow"><span class="fl"><b>Tarn-Modus jetzt</b><small>' + (o.tarnNow ? 'An. Alles öffnet nur den Tarn-Tresor, bis du deinen echten Code eingibst.' : 'Vorher einschalten, z. B. vor einer Kontrolle.') + '</small></span>' + swc('tarnNow', o.tarnNow) + '</div>' : '') + '</div>' +
-      (has ? '<div class="sgt">Inhalt</div><div class="grp"><button type="button" class="srow" data-a="editdecoy"><span class="fl"><b>Tarn-Inhalt bearbeiten</b><small>Fotos, Dokumente und Passwörter für den Tarn-Tresor</small></span>' + ic('chev') + '</button></div>' : '') +
+      (has ? '<div class="sgt">Inhalt</div><div class="grp"><button type="button" class="srow" data-a="editdecoy"><span class="fl"><b>Tarn-Inhalt bearbeiten</b><small>Fotos, Dokumente und Passwörter für den Tarn-Tresor</small></span>' + ic('chev') + '</button></div>' +
+        '<p class="hint" style="margin:8px 4px 0">Den Tarn-Code änderst du im Tarn-Tresor selbst: dort öffnen, dann unter Einstellungen „Tresor-Code ändern“.</p>' : '') +
       '<div class="vwarn" style="margin-top:12px">' + ic('face') + '<span><b>Zur Erinnerung:</b> Face ID öffnet, was du oben einstellst. Wenn dich jemand zwingt, tippe auf das Tastenfeld und gib den Tarn-Code ein.</span></div>' };
   };
   S.log = function () {
@@ -550,30 +550,13 @@
     } else if (st.codeMode === 'change') {
       V.changeCode(code).then(function () { popTo('settings'); toast('Neuer Tresor-Code gespeichert'); });
     } else if (st.codeMode === 'tarn') {
-      // Tarn-Tresor neu einrichten (oder Tarn-Code ändern)
       var mode = V.opts().tarnMode || 'code';
-      if (V.hasDecoy()) {
-        // Tarn-Code ändern: Tarn-Tresor öffnen? Einfacher: neu aufsetzen würde Inhalt löschen. Wir ändern den Code über das Store.
-        changeTarnCode(code);
-      } else {
-        V.setupDecoy(code, mode).then(function () { popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
-      }
+      V.setupDecoy(code, mode).then(function () { popTo('tarn'); toast('Tarn-Tresor eingerichtet'); });
     } else if (st.codeMode === 'reset') {
       V.changeCode(code).then(function () { openVaultHome(); toast('Neuer Code gespeichert'); });
     }
   }
-  function changeTarnCode(code) {
-    // Tarn-Tresor öffnen (über Geräteschlüssel bei any-Modus) oder neu mit Code – hier nur Code neu setzen über erneutes Setup mit Inhaltsübernahme ist komplex.
-    // Einfacher, sicherer Weg: Tarn-Tresor direkt öffnen und changeCode nutzen.
-    var reopen = V.isDecoy() ? Promise.resolve({ decoy: true }) : V.openDecoyDirect().catch(function () { return null; });
-    reopen.then(function (r) {
-      if (!r) { popTo('tarn'); toast('Zum Ändern bitte den Tarn-Code eingeben'); return; }
-      V.changeCode(code).then(function () {
-        // zurück in den echten Tresor wechseln wäre nötig; der Nutzer ist im echten geblieben (wir haben nur kurz decoy geöffnet)
-        popTo('tarn'); toast('Tarn-Code gespeichert');
-      });
-    });
-  }
+
   function popTo(screen) {
     while (hist.length && st.screen !== screen) st.screen = hist.pop();
     st.screen = screen; render();
@@ -702,7 +685,6 @@
       case 'fdel': if (!st.fdel) { st.fdel = true; render(); break; } var files = D().files, fx = byId(files, st.fid); V.delFile(fx.id); files.splice(files.indexOf(fx), 1); st.fdel = false; save(); back(); toast('Gelöscht'); break;
       case 'changecode': st.codeMode = 'change'; st.codeStep = 1; st.entry = ''; go('code'); break;
       case 'tarn': go('tarn'); break;
-      case 'tarncode': st.codeMode = 'tarn'; st.codeStep = 1; st.entry = ''; go('code'); break;
       case 'editdecoy': editDecoy(); break;
       case 'renewkey': V.newRecoveryKey().then(function (rk) { st.recKey = rk; st.recMode = 'renew'; st.wrote = false; go('recovery'); }); break;
       case 'log': go('log'); break;
