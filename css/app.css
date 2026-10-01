@@ -64,7 +64,7 @@ a,button,summary,label.btn,.chip,.card,.row{touch-action:manipulation;-webkit-us
 h2,h3{text-wrap:balance}
 
 /* ---------- Kopf ---------- */
-.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:grid;gap:10px;max-width:1100px;margin:0 auto}
+.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);max-width:1100px;margin:0 auto}
 .topbar{display:flex;align-items:center;gap:6px;min-height:40px}
 .topbar h1{margin:0;flex:1;min-width:0;font-family:var(--f-display);font-weight:800;font-size:26px;letter-spacing:-.02em;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .back{margin-left:-8px}
