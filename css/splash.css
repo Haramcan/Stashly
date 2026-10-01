@@ -1,0 +1,54 @@
+/* Wo ist was – Startanimation: Karton öffnet sich, die Dinge strömen heraus, dann erscheint die App. */
+#startsplash{
+  position:fixed;inset:0;z-index:4000;display:grid;place-items:center;overflow:hidden;
+  --brand:#2F5D50;--brand-2:#264C42;--brand-deep:#17322B;
+  --carton:#E7E3DA;--carton-sh:#CFC7B6;--carton-dk:#C9BFA8;--inside:#121E1A;--on-brand:#F1F4F1;
+  background:radial-gradient(120% 90% at 50% 20%,var(--brand) 0%,var(--brand-2) 58%,var(--brand-deep) 100%);
+  animation:sp-reveal .72s cubic-bezier(.32,.72,0,1) 2.6s forwards;
+}
+#startsplash::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(55% 38% at 50% 42%,rgba(255,255,255,.10),transparent 70%)}
+#startsplash .sp-stage{position:relative;display:grid;justify-items:center;transform:translateY(-6px);animation:sp-lift .7s cubic-bezier(.32,.72,0,1) 2.55s forwards}
+#startsplash .sp-boxwrap{position:relative;width:168px;height:168px}
+#startsplash .sp-items{position:absolute;left:0;right:0;top:40%;height:0;z-index:-1}
+#startsplash .sp-fly{position:absolute;left:50%;top:0;width:36px;height:36px;margin:-18px 0 0 -18px;display:grid;place-items:center;opacity:0;
+  animation:sp-fly calc(1.05s * var(--m,1)) cubic-bezier(.3,.1,.25,1) calc(var(--d) * var(--m,1)) both}
+#startsplash .sp-fly .chip{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;box-shadow:0 4px 10px rgba(0,0,0,.18)}
+#startsplash .sp-fly .chip svg{width:21px;height:21px}
+#startsplash .sp-carton{position:absolute;inset:0;filter:drop-shadow(0 20px 30px rgba(0,0,0,.3));animation:sp-pop .5s cubic-bezier(.34,1.56,.64,1) .1s both}
+#startsplash .sp-carton *{transform-box:fill-box}
+#startsplash .c-flapL{transform-origin:left bottom;animation:sp-flapL .55s cubic-bezier(.34,1.56,.64,1) .5s forwards}
+#startsplash .c-flapR{transform-origin:right bottom;animation:sp-flapR .55s cubic-bezier(.34,1.56,.64,1) .5s forwards}
+#startsplash .c-body{transform-origin:50% 100%;animation:sp-shake 1.3s cubic-bezier(.32,.72,0,1) .75s}
+#startsplash .sp-word{margin-top:26px;height:1.4em;overflow:hidden}
+#startsplash .sp-word b{display:block;font-family:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-weight:800;font-size:26px;line-height:1.4;letter-spacing:-.01em;color:var(--on-brand);transform:translateY(115%);
+  animation:sp-rise .65s cubic-bezier(.32,.72,0,1) 1.5s forwards}
+#startsplash .sp-tag{margin-top:7px;font-family:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:13.5px;letter-spacing:.02em;color:rgba(241,244,241,.68);opacity:0;animation:sp-appear .5s 1.95s forwards}
+
+@keyframes sp-pop{from{transform:scale(.6);opacity:0}70%{opacity:1}to{transform:none;opacity:1}}
+@keyframes sp-flapL{to{transform:rotate(-124deg)}}
+@keyframes sp-flapR{to{transform:rotate(124deg)}}
+@keyframes sp-shake{0%,100%{transform:none}20%{transform:translateX(-1.5px) rotate(-1deg)}40%{transform:translateX(1.5px) rotate(1deg)}60%{transform:translateX(-1px)}80%{transform:translateX(1px)}}
+@keyframes sp-fly{
+  0%{transform:translate(var(--x0),4px) scale(.5);opacity:0}
+  14%{opacity:1}70%{opacity:1}
+  100%{transform:translate(var(--x1),-150px) scale(.18);opacity:0}
+}
+@keyframes sp-rise{to{transform:none}}
+@keyframes sp-appear{to{opacity:1}}
+@keyframes sp-lift{to{transform:translateY(-40px) scale(.93);opacity:0}}
+@keyframes sp-reveal{from{clip-path:circle(145% at 50% 42%)}to{clip-path:circle(0% at 50% 42%);visibility:hidden}}
+
+/* Wer „Bewegung reduzieren“ eingestellt hat: nur ein kurzer, ruhiger Einblender */
+@media (prefers-reduced-motion: reduce){
+  #startsplash{animation:sp-fade .45s ease .7s forwards}
+  #startsplash .sp-stage,#startsplash .c-body{animation:none}
+  #startsplash .sp-carton{animation:none}
+  #startsplash .c-flapL{transform:rotate(-124deg);animation:none}
+  #startsplash .c-flapR{transform:rotate(124deg);animation:none}
+  #startsplash .sp-fly{display:none}
+  #startsplash .sp-word b{transform:none;animation:none}
+  #startsplash .sp-tag{opacity:1;animation:none}
+}
+@keyframes sp-fade{to{opacity:0;visibility:hidden}}
