@@ -32,7 +32,7 @@
     hQuick: true, hNext: true, hFav: true, hRecent: true, hRooms: true, hStats: true, hBackup: true,
     vTap: 70, vMenu: 60, vPage: 40, vChime: 85, vSwipe: 70, chimeRepeat: '2',
     alert: 'bell', ring: true, pill: true, showCount: true, swipe: true, snoozeDefault: 'morgen',
-    accent: 'green', iconColor: 'multi', look: 'auto', haptic: 'light', lockAfter: '0', recog: true
+    theme: 'std', accent: 'green', iconColor: 'multi', look: 'auto', haptic: 'light', lockAfter: '0', recog: true
   };
   function P(k) { return prefs[k] === undefined ? DEFAULTS[k] : prefs[k]; }
   W.Sound.cfg = function () { return Object.assign({}, DEFAULTS, prefs); };
@@ -960,7 +960,7 @@
     { id: 'menu', t: 'Menü & Animationen', c: '#6E56B8', ic: SI('<circle cx="7" cy="17" r="3.2"/><circle cx="8" cy="6.5" r="2"/><circle cx="14.5" cy="9" r="2"/><circle cx="17.5" cy="16" r="2"/>'),
       sum: function () { return { left: 'Knopf links', mid: 'Knopf mittig', right: 'Knopf rechts' }[P('pos')] + (P('labels') ? ' · mit Namen' : '') + ' · ' + ({ soft: 'Sanft', circle: 'Kreis', off: 'Ohne Animation' }[P('anim')] || ''); } },
     { id: 'look', t: 'Farben & Design', c: '#C2477A', ic: SI('<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.8-.9 1.8-1.8 0-1.2-1-1.6-1-2.7 0-1 .8-1.7 1.8-1.7h2.2A3.7 3.7 0 0 0 20.5 10.6C20.5 6.6 16.7 3.5 12 3.5z"/><circle cx="7.6" cy="11" r="1.1" fill="currentColor"/><circle cx="10.2" cy="7.3" r="1.1" fill="currentColor"/><circle cx="14.6" cy="7.4" r="1.1" fill="currentColor"/>'),
-      sum: function () { return (ACC[P('accent')] || ACC.green).n + ' · ' + { auto: 'Hell/Dunkel automatisch', light: 'Hell', dark: 'Dunkel' }[P('look')]; } },
+      sum: function () { var th = W.Themes && W.Themes.get(P('theme')); return th ? 'Schema ' + th.n : 'Standard · ' + (ACC[P('accent')] || ACC.green).n + ' · ' + { auto: 'Hell/Dunkel automatisch', light: 'Hell', dark: 'Dunkel' }[P('look')]; } },
     { id: 'home', t: 'Startbildschirm', c: '#2F7D5F', ic: SI('<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>'),
       sum: function () { var k = ['hQuick', 'hNext', 'hFav', 'hRecent', 'hRooms', 'hStats', 'hBackup'], n = k.filter(function (x) { return P(x); }).length; return n + ' von ' + k.length + ' Bereichen sichtbar'; } },
     { id: 'remind', t: 'Erinnerungen', c: '#C4611F', ic: SI(BELL),
@@ -987,7 +987,11 @@
         scol('Symbol-Animationen', 'Haus hüpft, Kiste klappt auf, Nadel fällt, Glocke läutet, Tresor dreht', sseg('iconAnim', [['off', 'Aus'], ['tap', 'Beim Antippen'], ['always', 'Immer']])));
     },
     look: function () {
-      return sgroup('Farben',
+      var th = W.Themes ? W.Themes.get(P('theme')) : null;
+      var gal = sgroup('Farbschema', '<div class="set-row col"><div class="themes" role="group" aria-label="Farbschema">' + themeCards() + '</div></div>',
+        th ? 'Das Schema legt alle Farben fest. Für eine eigene Akzentfarbe wähle „Standard“.' : '');
+      if (th) return gal;
+      return gal + sgroup('Farben',
         scol('Akzentfarbe', 'Knöpfe, Schalter, Markierungen und der Knopf „+“', swatchesHTML()) +
         scol('Symbolfarben', 'Jeder Bereich in eigener Farbe oder alles in der Akzentfarbe', sseg('iconColor', [['multi', 'Bunt'], ['mono', 'Einfarbig']]))) +
       sgroup('Darstellung', scol('Design', '', sseg('look', [['auto', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']])));
@@ -1046,6 +1050,23 @@
         '<button class="set-row" type="button" data-act="storage"><span class="st"><b>Speicher</b><small>' + (DB.persistent ? 'Alle Daten liegen nur auf diesem Gerät. Tippen für Details.' : 'Speichern ist in diesem Browser nicht möglich.') + '</small></span>' + ICON.chev + '</button>');
     }
   };
+  // Vorschau-Karten der Farbschemen: zeigen jeweils eine Mini-Version der App
+  function themeCards() {
+    var dk = (function () { var l = P('look'); return l === 'dark' || (l === 'auto' && !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)); })();
+    var a = ACC[P('accent')] || ACC.green, ac = dk ? a.d[0] : a.l[0];
+    var std = { id: 'std', n: 'Standard', d: (ACC[P('accent')] || ACC.green).n + ' · Hell/Dunkel wählbar', v: dk
+      ? { bg: '#0F1513', surface: '#18201D', ink: '#E6ECE9', line: '#2D3934', accent: ac, 'c-items': '#86C9B3', 'c-places': '#8DB3EE', 'c-due': '#F0A36A', 'c-archive': '#D9B978', 'c-more': '#B7A5F0' }
+      : { bg: '#EDF0EE', surface: '#FFFFFF', ink: '#16201D', line: '#D6DDDA', accent: ac, 'c-items': '#2F5D50', 'c-places': '#3563A8', 'c-due': '#C4611F', 'c-archive': '#8A6A2E', 'c-more': '#6E56B8' } };
+    return [std].concat(W.Themes ? W.Themes.list : []).map(function (t) {
+      var v = t.v, cur = P('theme') === t.id;
+      var st = '--t-bg:' + v.bg + ';--t-sf:' + v.surface + ';--t-ink:' + v.ink + ';--t-line:' + v.line + ';--t-ac:' + v.accent +
+        ';--t1:' + v['c-items'] + ';--t2:' + v['c-places'] + ';--t3:' + v['c-due'] + ';--t4:' + v['c-archive'] + ';--t5:' + v['c-more'];
+      return '<button type="button" class="thm" data-set="theme" data-val="' + t.id + '" aria-pressed="' + cur + '" style="' + st + '">' +
+        '<span class="thm-pv" aria-hidden="true"><i class="thm-t"></i><i class="thm-c"><i></i><i></i></i><i class="thm-c s"><i></i></i>' +
+        '<span class="thm-d"><i></i><i></i><i></i><i></i><i></i></span><i class="thm-o"></i>' + (cur ? '<span class="thm-ok">' + ICON.check + '</span>' : '') + '</span>' +
+        '<span class="thm-n"><b>' + esc(t.n) + '</b><small>' + esc(t.d) + '</small></span></button>';
+    }).join('');
+  }
   VIEWS.settings = function () {
     var page = S.arg && SET_PAGES[S.arg];
     if (page) return '<div class="set-sub">' + page() + '</div>';
@@ -1058,6 +1079,8 @@
     }).join('') + '<p class="meta-line" style="margin-top:18px">Wo ist was · Version ' + APP_VERSION + (U.isStandalone() ? ' · installiert' : '') + '</p>';
   };
   function isDark() {
+    var th = W.Themes && W.Themes.get(P('theme'));
+    if (th) return th.dark;
     var look = P('look');
     if (look === 'dark') return true;
     if (look === 'light') return false;
@@ -1069,15 +1092,20 @@
     ['left', 'mid', 'right'].forEach(function (p) { b.classList.toggle('pos-' + p, P('pos') === p); });
     b.classList.toggle('no-labels', !P('labels'));
     b.classList.toggle('no-count', !P('showCount'));
+    b.classList.toggle('anim-off', P('anim') === 'off');
     b.style.setProperty('--wave-dur', tempo().dur + 'ms');
-    if (P('look') === 'auto') d.removeAttribute('data-look'); else d.setAttribute('data-look', P('look'));
-    var a = ACC[P('accent')] || ACC.green, dk = isDark(), c = dk ? a.d : a.l;
-    d.style.setProperty('--accent', c[0]);
-    d.style.setProperty('--accent-soft', c[1]);
-    d.style.setProperty('--accent-ink', dk ? '#0F1513' : '#FFFFFF');
-    ['home', 'items', 'places', 'due', 'archive', 'more'].forEach(function (k) {
-      if (P('iconColor') === 'mono') d.style.setProperty('--c-' + k, c[0]); else d.style.removeProperty('--c-' + k);
-    });
+    // Farbschema legt alle Farben fest; nur bei „Standard“ gelten Akzentfarbe, Hell/Dunkel und Symbolfarben
+    var th = W.Themes ? W.Themes.apply(P('theme')) : null;
+    if (!th) {
+      if (P('look') === 'auto') d.removeAttribute('data-look'); else d.setAttribute('data-look', P('look'));
+      var a = ACC[P('accent')] || ACC.green, dk = isDark(), c = dk ? a.d : a.l;
+      d.style.setProperty('--accent', c[0]);
+      d.style.setProperty('--accent-soft', c[1]);
+      d.style.setProperty('--accent-ink', dk ? '#0F1513' : '#FFFFFF');
+      ['home', 'items', 'places', 'due', 'archive', 'more'].forEach(function (k) {
+        if (P('iconColor') === 'mono') d.style.setProperty('--c-' + k, c[0]); else d.style.removeProperty('--c-' + k);
+      });
+    }
     U.$$('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', getComputedStyle(d).getPropertyValue('--bg').trim() || m.getAttribute('content')); });
     placeBubble();
     showAlert();
@@ -2817,6 +2845,12 @@
     if ((t = e.target.closest('[data-mstatus]'))) { setMoveStatus(t.dataset.id, t.dataset.mstatus); return; }
   });
   function setPref(key, val, btn) {
+    // Farbschema: sanft überblenden und die Seite neu zeichnen (Vorschau-Karten, Zusammenfassung)
+    if (key === 'theme') {
+      var swap = function () { prefs[key] = val; savePrefs(); applyPrefs(); updateChrome(); render(); };
+      if (document.startViewTransition && P('anim') !== 'off' && !reduceMotion) document.startViewTransition(swap); else swap();
+      return;
+    }
     prefs[key] = val; savePrefs(); applyPrefs();
     if (btn) U.$$('button', btn.parentNode).forEach(function (x) { x.setAttribute('aria-pressed', String(x === btn)); });
     if (key === 'chimeRepeat') W.Sound.chime();

@@ -1,7 +1,7 @@
 /* Wo ist was – Startanimation: Karton öffnet sich, die Dinge strömen heraus, dann erscheint die App. */
 #startsplash{
   position:fixed;inset:0;z-index:4000;display:grid;place-items:center;overflow:hidden;
-  --brand:#2F5D50;--brand-2:#264C42;--brand-deep:#17322B;
+  --brand:var(--sp-a,#2F5D50);--brand-2:var(--sp-b,#264C42);--brand-deep:var(--sp-c,#17322B);
   --carton:#E7E3DA;--carton-sh:#CFC7B6;--carton-dk:#C9BFA8;--inside:#121E1A;--on-brand:#F1F4F1;
   background:radial-gradient(120% 90% at 50% 20%,var(--brand) 0%,var(--brand-2) 58%,var(--brand-deep) 100%);
   animation:sp-reveal .72s cubic-bezier(.32,.72,0,1) 2.6s forwards;

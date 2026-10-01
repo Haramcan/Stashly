@@ -144,10 +144,26 @@
       fmode: null, fdel: false, recInput: '', pendingFiles: null };
     hist = [];
   }
-  function go(s) { hist.push(st.screen); st.screen = s; render(); }
+  // Richtung des nächsten Bildwechsels: fwd (tiefer), back (zurück), soft (Tab), reveal (gerade geöffnet), lock
+  var navDir = null, revealUntil = 0;
+  function go(s) { hist.push(st.screen); st.screen = s; navDir = 'fwd'; render(); }
   function back() {
     if (!hist.length) { UI.close(); return; }
-    st.screen = hist.pop(); render();
+    st.screen = hist.pop(); navDir = 'back'; render();
+  }
+  function animOn() { return !document.body.classList.contains('anim-off') && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  // Bildwechsel animieren. Nur bei echtem Navigieren, nicht bei jedem Neuzeichnen (Speichern, Schalter …)
+  function playIn(dir) {
+    SCR.classList.remove('v-in-fwd', 'v-in-back', 'v-in-soft', 'v-in-reveal', 'v-in-lock');
+    TITLE.classList.remove('v-tin');
+    if (!dir || !animOn()) return;
+    if (dir === 'reveal') {
+      Array.prototype.forEach.call(SCR.children, function (el, i) { el.style.setProperty('--i', Math.min(i, 12)); });
+      revealUntil = Date.now() + 1100;
+    }
+    void SCR.offsetWidth;
+    SCR.classList.add('v-in-' + dir);
+    if (dir === 'fwd' || dir === 'back') TITLE.classList.add('v-tin');
   }
 
   /* ---------- Render ---------- */
@@ -162,6 +178,7 @@
     BOX.classList.toggle('viewer', !!r.viewer);
     SCR.innerHTML = r.html;
     SCR.scrollTop = 0;
+    var dir = navDir; navDir = null; playIn(dir);
     if (r.after) r.after();
     tickCodes();
   }
@@ -508,7 +525,7 @@
     catch (e) { toast(what + ' kopiert'); }
   }
   function openVaultHome(decoyEdit) {
-    st.armReal = false;
+    st.armReal = false; navDir = 'reveal';
     st.screen = 'items'; st.tab = 'items'; st.pwv = 'pw'; st.ff = 'all'; st.folder = null; hist = [];
     loadFileURLs();
     render();
@@ -546,10 +563,14 @@
     }, function () { abortWrites(written); }); // Original bleibt dann in der App
   }
   // Datei-URLs für Vorschaubilder nachladen (entschlüsselt)
+  // Alle auf einmal und erst nach dem Erscheinen neu zeichnen, damit die Animation nicht abreißt
   function loadFileURLs() {
     var files = D().files.filter(function (f) { return !f.url && f.hasBlob; });
-    files.forEach(function (f) {
-      V.getFileURL(f.id, f.mime).then(function (u) { if (u) { f.url = u; if (BOX.classList.contains('on')) render(); } }).catch(function () {});
+    if (!files.length) return;
+    Promise.all(files.map(function (f) {
+      return V.getFileURL(f.id, f.mime).then(function (u) { if (u) f.url = u; }).catch(function () {});
+    })).then(function () {
+      setTimeout(function () { if (UI.isOpen() && V.isOpen()) render(); }, Math.max(0, revealUntil - Date.now()));
     });
   }
 
@@ -638,7 +659,7 @@
 
   function popTo(screen) {
     while (hist.length && st.screen !== screen) st.screen = hist.pop();
-    st.screen = screen; render();
+    st.screen = screen; navDir = 'back'; render();
   }
 
   /* Face ID: echte Prüfung über einen eigenen Tresor-Passkey (W.Lock), erst danach über den Geräteschlüssel öffnen.
@@ -686,7 +707,7 @@
     BOX.addEventListener('click', function (e) {
       var t;
       if ((t = e.target.closest('[data-k]'))) { if (t.dataset.k === 'face' && longFired) { longFired = false; return; } key(t.dataset.k); return; }
-      if ((t = e.target.closest('[data-tab]'))) { st.tab = t.dataset.tab; render(); return; }
+      if ((t = e.target.closest('[data-tab]'))) { if (st.tab !== t.dataset.tab) navDir = 'soft'; st.tab = t.dataset.tab; render(); return; }
       if ((t = e.target.closest('[data-pwv]'))) { st.pwv = t.dataset.pwv; render(); return; }
       if ((t = e.target.closest('[data-ff]'))) { st.ff = t.dataset.ff; render(); return; }
       if ((t = e.target.closest('[data-fold]'))) { st.folder = st.folder === t.dataset.fold ? null : t.dataset.fold; render(); return; }
@@ -881,16 +902,17 @@
     else relock();
   }
   // Alles Entschlüsselte aus Bildschirm und Zwischenspeicher entfernen
-  function forget() {
+  // keepScreen: Inhalt noch stehen lassen, solange der Tresor ausblendet (wird danach geleert)
+  function forget(keepScreen) {
     V.lock();
     clearTimeout(revealT);
     totpCache = {};
-    if (SCR) SCR.innerHTML = '';
+    if (SCR && !keepScreen) SCR.innerHTML = '';
     reset();
   }
   function relock() {
     forget();
-    st.screen = V.configured() ? 'lock' : 'intro'; render();
+    st.screen = V.configured() ? 'lock' : 'intro'; navDir = 'lock'; render();
   }
   function wipeConfirm() {
     confirmSheet('Tresor löschen?', 'Alle Dinge, Dateien und Passwörter im Tresor werden gelöscht. Das lässt sich nicht rückgängig machen.', function () {
@@ -916,16 +938,24 @@
     V.lock();
     st.screen = V.configured() ? 'lock' : 'intro';
     document.body.classList.add('vault-open');
+    clearTimeout(closeT); BOX.classList.remove('out');
     BOX.classList.add('on');
+    navDir = 'lock';
     render();
     if (L.faceAvailable) L.faceAvailable().then(function (v) { UI._faceAvail = !!v; });
   };
+  var closeT = null;
   UI.close = function () {
-    forget();
-    if (BOX) BOX.classList.remove('on');
+    // Weich ausblenden, dann wirklich schließen. Gesperrt ist sofort, nur das Bild bleibt kurz stehen.
+    var fade = !!BOX && BOX.classList.contains('on') && animOn();
+    forget(fade);
+    if (fade) {
+      BOX.classList.add('out'); clearTimeout(closeT);
+      closeT = setTimeout(function () { SCR.innerHTML = ''; BOX.classList.remove('on', 'out'); }, 260);
+    } else if (BOX) BOX.classList.remove('on');
     document.body.classList.remove('vault-open');
   };
-  UI.isOpen = function () { return BOX && BOX.classList.contains('on'); };
+  UI.isOpen = function () { return !!BOX && BOX.classList.contains('on') && !BOX.classList.contains('out'); };
 
   // Nach Zeit im Hintergrund wieder sperren
   document.addEventListener('visibilitychange', function () {

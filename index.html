@@ -22,6 +22,7 @@
 try { var wp = JSON.parse(localStorage.getItem('wiw-prefs') || '{}'), de = document.documentElement;
   if (wp.look === 'dark' || wp.look === 'light') de.setAttribute('data-look', wp.look);
   if (wp.lock && wp.lockHash) de.classList.add('is-locked'); } catch (e) { /* egal */ }</script>
+<script src="js/themes.js"></script>
 </head>
 <body>
 
