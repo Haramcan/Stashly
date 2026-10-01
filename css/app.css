@@ -11,7 +11,7 @@
   --f-body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --top-h:0px;
-  --c-home:#16201D; --c-items:#2F5D50; --c-places:#3563A8; --c-due:#C4611F; --c-more:#6E56B8; --on-c:#FFFFFF;
+  --c-home:#16201D; --c-items:#2F5D50; --c-places:#3563A8; --c-due:#C4611F; --c-archive:#8A6A2E; --c-more:#6E56B8; --on-c:#FFFFFF;
   --glass:rgba(255,255,255,.74); --glass-line:rgba(22,32,29,.08); --glass-hi:rgba(255,255,255,.9);
   --glass-shadow:0 1px 1px rgba(22,32,29,.04),0 12px 34px rgba(22,32,29,.16);
   --ease:cubic-bezier(.32,.72,0,1);
@@ -29,7 +29,7 @@
     --danger:#F08A80; --danger-soft:#3A1F1C; --warn:#E6BE5A; --warn-soft:#3A3018;
     --scrim:rgba(0,0,0,.6);
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45);
-    --c-home:#E6ECE9; --c-items:#86C9B3; --c-places:#8DB3EE; --c-due:#F0A36A; --c-more:#B7A5F0; --on-c:#0F1513;
+    --c-home:#E6ECE9; --c-items:#86C9B3; --c-places:#8DB3EE; --c-due:#F0A36A; --c-archive:#D9B978; --c-more:#B7A5F0; --on-c:#0F1513;
     --glass:rgba(34,44,40,.72); --glass-line:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.12);
     --glass-shadow:0 1px 1px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.5);
     --switch-off:#3A4843; --alarm:#E5574B;
@@ -44,7 +44,7 @@
     --danger:#F08A80; --danger-soft:#3A1F1C; --warn:#E6BE5A; --warn-soft:#3A3018;
     --scrim:rgba(0,0,0,.6);
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45);
-    --c-home:#E6ECE9; --c-items:#86C9B3; --c-places:#8DB3EE; --c-due:#F0A36A; --c-more:#B7A5F0; --on-c:#0F1513;
+    --c-home:#E6ECE9; --c-items:#86C9B3; --c-places:#8DB3EE; --c-due:#F0A36A; --c-archive:#D9B978; --c-more:#B7A5F0; --on-c:#0F1513;
     --glass:rgba(34,44,40,.72); --glass-line:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.12);
     --glass-shadow:0 1px 1px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.5);
     --switch-off:#3A4843; --alarm:#E5574B;
@@ -455,6 +455,7 @@ svg g,svg circle,svg rect,svg path{transform-box:view-box}
 .p-pin{transform-origin:12px 21px} .p-pindot{transform-origin:12px 10px}
 .p-d1,.p-d2,.p-d3{transform-origin:center}
 .p-gear,.p-plus{transform-origin:12px 12px}
+.p-safe{transform-origin:12px 11.5px}
 .bell{transform-origin:12px 3px}
 .anim .p-roof{animation:roof .7s var(--spring)}
 .anim .p-house{animation:squash .7s var(--spring)}
@@ -468,7 +469,9 @@ svg g,svg circle,svg rect,svg path{transform-box:view-box}
 .anim .bell,.ring .bell{animation:ring 1s ease-out}
 .anim .p-gear{animation:gear .8s var(--spring)}
 .anim .p-plus{animation:plus .55s var(--spring)}
+.anim .p-safe{animation:safe .9s var(--spring)}
 .jiggle{animation:jiggle .7s ease-out}
+@keyframes safe{0%{transform:none}40%{transform:rotate(-120deg)}70%{transform:rotate(-80deg)}100%{transform:none}}
 @keyframes roof{0%{transform:none}30%{transform:translateY(-3.5px) rotate(-4deg)}55%{transform:translateY(.6px)}100%{transform:none}}
 @keyframes squash{0%{transform:none}30%{transform:scaleY(.86) scaleX(1.06)}60%{transform:scaleY(1.04) scaleX(.98)}100%{transform:none}}
 @keyframes lid{0%{transform:none}35%{transform:translateY(-2.5px) rotate(-24deg)}65%{transform:rotate(4deg)}100%{transform:none}}
@@ -581,6 +584,16 @@ label.set-row,button.set-row{cursor:pointer;width:100%;border:0;background:trans
 .set-row .st b{font-size:15.5px;font-weight:700}
 .set-row .st small{font-size:12.5px;color:var(--muted)}
 .set-note{font-size:12.5px;color:var(--muted);padding:0 6px;margin:0}
+/* Übersicht der Einstellungen: Zeilen mit farbigem Symbol, die eine Unterseite öffnen */
+a.set-row{text-decoration:none;color:var(--ink)}
+.set-nav{justify-content:flex-start;padding:10px 12px 10px 14px}
+.set-nav .st{flex:1}
+.set-nav .st small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.set-nav .chev{width:18px;height:18px;color:var(--muted);flex:none}
+.set-nav:active{background:var(--surface-2)}
+.sic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;background:var(--sc);color:#fff}
+.sic svg{width:20px;height:20px}
+.set-sub .set-group:first-child{margin-top:4px}
 .switch{-webkit-appearance:none;appearance:none;flex:none;width:51px;height:31px;border-radius:999px;background:var(--switch-off);position:relative;margin:0;border:0;transition:background-color .25s var(--ease)}
 .switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .3s var(--spring)}
 .switch:checked{background:var(--accent)}

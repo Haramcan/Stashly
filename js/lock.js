@@ -30,24 +30,25 @@
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(function () { return false; });
   };
   // Muss direkt aus einem Antippen heraus aufgerufen werden
-  L.enrollFace = function () {
+  L.enrollFace = function (label) {
     return navigator.credentials.create({ publicKey: {
       challenge: rand(32),
       rp: { name: 'Wo ist was', id: location.hostname },
-      user: { id: rand(16), name: 'wo-ist-was', displayName: 'Wo ist was' },
+      user: { id: rand(16), name: label || 'wo-ist-was', displayName: label || 'Wo ist was' },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
       timeout: 60000
     } }).then(function (c) { return b64(c.rawId); });
   };
-  function verifyFace() {
-    var id = cfg().lockCred;
+  function verifyFace() { return L.verifyFaceWith(cfg().lockCred); }
+  // Prüft Face ID mit einem bestimmten Passkey (auch für den Tresor). Muss direkt aus einem Antippen heraus aufgerufen werden.
+  L.verifyFaceWith = function (id) {
     if (!id) return Promise.reject(new Error('kein Passkey'));
     return navigator.credentials.get({ publicKey: {
       challenge: rand(32), rpId: location.hostname, userVerification: 'required', timeout: 60000,
       allowCredentials: [{ type: 'public-key', id: unb64(id), transports: ['internal'] }]
     } });
-  }
+  };
 
   /* ---------- Oberfläche ---------- */
   var FACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9v1.5M15 9v1.5M12 9v4h-1M9.5 16a4 4 0 0 0 5 0"/></svg>';

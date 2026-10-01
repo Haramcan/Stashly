@@ -231,7 +231,7 @@
    * ========================================================= */
   var S = { route: 'home', arg: null, q: '', room: prefs.room || 'all', status: 'all', sort: prefs.sort || 'new', selecting: false, selected: new Set(), ready: false };
   var ROUTES = ['home', 'items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving', 'settings', 'archive'];
-  var TOP_ROUTES = ['items', 'places', 'due', 'more'];
+  var TOP_ROUTES = ['items', 'places', 'due', 'archive', 'more'];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ''), parts = h.split('/');
     var r = parts[0] || 'home';
@@ -242,7 +242,7 @@
   function go(path) { if (location.hash !== '#/' + path) location.hash = '#/' + path; else render(); }
   var scrollMem = {}, curKey = location.hash || '#/';
   window.addEventListener('hashchange', function () {
-    var prevRoute = S.route, prevSec = sectionOf(S.route);
+    var prevRoute = S.route, prevArg = S.arg, prevSec = sectionOf(S.route);
     scrollMem[curKey] = window.scrollY;
     var g = makeGhost();
     parseHash();
@@ -256,7 +256,7 @@
     // Zurück an dieselbe Stelle statt immer ganz nach oben
     window.scrollTo(0, P('keepScroll') ? (scrollMem[curKey] || 0) : 0);
     var from = navFrom; navFrom = null;
-    playTransition(g, prevRoute, from);
+    playTransition(g, prevRoute, from, prevArg);
     if (sectionOf(S.route) !== prevSec) setTimeout(function () { animIcon($('#orbIc'), true); }, 160);
     if (S.route === 'home' && P('iconAnim') === 'always') U.$$('.nav-tile .nav-ic', view).forEach(function (ic, i) { setTimeout(function () { animIcon(ic); }, 260 + i * 90); });
   });
@@ -286,6 +286,7 @@
     items: '<svg viewBox="0 0 24 24" ' + SW + '><g class="p-box"><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></g><g class="p-lid"><rect x="3" y="4" width="18" height="5" rx="1.5"/></g></svg>',
     places: '<svg viewBox="0 0 24 24" ' + SW + '><g class="p-pin"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle class="p-pindot" cx="12" cy="10" r="2.4"/></g></svg>',
     due: '<svg viewBox="0 0 24 24" ' + SW + '>' + BELL + '</svg>',
+    archive: '<svg viewBox="0 0 24 24" ' + SW + '><rect x="3.5" y="4" width="17" height="15" rx="2.5"/><path d="M7 19v1.5M17 19v1.5"/><g class="p-safe"><circle cx="12" cy="11.5" r="3.6"/><path d="M12 7.9v1.4M15.6 11.5h-1.4M12 15.1v-1.4M8.4 11.5h1.4"/></g></svg>',
     more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle class="p-d1" cx="5.5" cy="12" r="2.1"/><circle class="p-d2" cx="12" cy="12" r="2.1"/><circle class="p-d3" cx="18.5" cy="12" r="2.1"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><g class="p-gear"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></g></svg>',
     clock: '<svg viewBox="0 0 24 24" ' + SW + '><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
@@ -305,9 +306,10 @@
     { id: 'items', path: 'items', label: 'Dinge' },
     { id: 'places', path: 'places', label: 'Orte' },
     { id: 'due', path: 'due', label: 'Fällig' },
+    { id: 'archive', path: 'archive', label: 'Archiv' },
     { id: 'more', path: 'more', label: 'Mehr' }
   ];
-  function sectionOf(r) { return r === 'room' || r === 'place' ? 'places' : (r === 'sortout' || r === 'moving' || r === 'settings' || r === 'archive') ? 'more' : r; }
+  function sectionOf(r) { return r === 'room' || r === 'place' ? 'places' : (r === 'sortout' || r === 'moving' || r === 'settings') ? 'more' : r; }
   function navMeta(id, due) {
     if (id === 'home') return 'Übersicht';
     if (id === 'items') return U.plural(liveItems().length, 'Gegenstand', 'Gegenstände');
@@ -316,6 +318,7 @@
       return U.plural(M.rooms().length, 'Raum', 'Räume') + (n ? ' · ' + U.plural(n, 'Möbel/Kiste', 'Möbel/Kisten') : '');
     }
     if (id === 'due') return due.count ? due.count + ' fällig' : 'Alles erledigt';
+    if (id === 'archive') return 'Weggeräumtes und Tresor';
     return 'Einstellungen, Sicherung, Berichte';
   }
   function badgeText(n) { return n > 99 ? '99+' : String(n); }
@@ -331,6 +334,7 @@
     var r = S.route, title = TITLES[r] || 'Wo ist was';
     if (r === 'room') { var rm = S.arg === 'none' ? { name: 'Ohne Raum' } : M.room(S.arg); title = rm ? rm.name : 'Raum'; }
     if (r === 'place') { var p = M.place(S.arg); title = p ? p.name : 'Ort'; }
+    if (r === 'settings' && S.arg && setDef(S.arg)) title = setDef(S.arg).t;
     $('#viewTitle').textContent = title;
     document.title = r === 'home' ? 'Wo ist was' : title + ' – Wo ist was';
     $('#backBtn').hidden = r === 'home';
@@ -350,9 +354,9 @@
   /* ---------- Rundmenü: die Bereiche fächern sich als Welle um den Knopf ---------- */
   // Winkel in Grad (0 = rechts, -90 = oben), ohne Namen (r, a) und mit Namen (lr, la)
   var LAYOUT = {
-    left: { r: 160, a: [-92, -62, -32, -4], lr: 176, la: [-94, -63, -32, 1], lbl: 'out' },
-    mid: { r: 120, a: [-166, -115, -65, -14], lr: 130, la: [-160, -113, -67, -20], lbl: 'below' },
-    right: { r: 160, a: [-88, -118, -148, -176], lr: 176, la: [-86, -117, -148, -181], lbl: 'out' }
+    left: { r: 178, a: [-93, -70, -47, -24, -1], lr: 194, la: [-95, -71, -47, -23, 2], lbl: 'out' },
+    mid: { r: 136, a: [-170, -130, -90, -50, -10], lr: 146, la: [-166, -128, -90, -52, -14], lbl: 'below' },
+    right: { r: 178, a: [-87, -110, -133, -156, -179], lr: 194, la: [-85, -109, -133, -157, -182], lbl: 'out' }
   };
   var TEMPO = { fast: { step: 35, dur: 420 }, normal: { step: 55, dur: 550 }, calm: { step: 85, dur: 700 } };
   var orb = $('#orb'), petalsEl = $('#petals'), navOpen = false, navFrom = null;
@@ -408,7 +412,7 @@
   window.addEventListener('resize', function () { setNav(false); placeBubble(); });
 
   /* ---------- Seitenwechsel: die alte Seite blendet als Abbild aus, die neue legt sich darüber ---------- */
-  var DEPTH = { home: 0, items: 1, places: 1, due: 1, more: 1, room: 2, sortout: 2, moving: 2, settings: 2, place: 3 };
+  var DEPTH = { home: 0, items: 1, places: 1, due: 1, archive: 1, more: 1, room: 2, sortout: 2, moving: 2, settings: 2, place: 3 };
   var EASE = 'cubic-bezier(.32,.72,0,1)';
   function makeGhost() {
     if (P('anim') === 'off' || reduceMotion || !view.animate || !S.ready) return null;
@@ -420,9 +424,10 @@
     document.body.appendChild(g);
     return g;
   }
-  function playTransition(g, prevRoute, from) {
+  function depthOf(route, arg) { return route === 'settings' && arg ? 3 : DEPTH[route] || 0; }
+  function playTransition(g, prevRoute, from, prevArg) {
     if (!g) return;
-    var dP = DEPTH[prevRoute] || 0, dN = DEPTH[S.route] || 0, cleaned = false;
+    var dP = depthOf(prevRoute, prevArg), dN = depthOf(S.route, S.arg), cleaned = false;
     function done() {
       if (cleaned) return; cleaned = true;
       g.remove(); view.classList.remove('entering'); view.style.transformOrigin = ''; view.style.minHeight = '';
@@ -571,7 +576,7 @@
   VIEWS.home = function () {
     var h = installBanner() + storageBanner();
     var due = M.due();
-    h += '<div class="home-grid">' + NAV.slice(1).map(function (n) {
+    h += '<div class="home-grid">' + NAV.slice(1).filter(function (n) { return n.id !== 'archive'; }).map(function (n) {
       return '<a class="nav-tile" href="#/' + n.path + '" data-navtile style="--c:var(--c-' + n.id + ')">' +
         '<span class="nav-ic" aria-hidden="true">' + NI[n.id] + '</span>' +
         (n.id === 'due' && due.count ? '<b class="nav-badge">' + badgeText(due.count) + '</b>' : '') +
@@ -946,61 +951,108 @@
       return '<button type="button" data-set="accent" data-val="' + k + '" aria-pressed="' + (P('accent') === k) + '" style="--sw:' + ACC[k].l[0] + '"><span>' + ICON.check + '</span>' + ACC[k].n + '</button>';
     }).join('') + '</div>';
   }
+  /* Einstellungen: Übersicht mit Unterseiten (#/settings/<bereich>) */
+  var SI = function (p) { return '<svg viewBox="0 0 24 24" ' + SW + '>' + p + '</svg>'; };
+  var SETS = [
+    { id: 'menu', t: 'Menü & Animationen', c: '#6E56B8', ic: SI('<circle cx="7" cy="17" r="3.2"/><circle cx="8" cy="6.5" r="2"/><circle cx="14.5" cy="9" r="2"/><circle cx="17.5" cy="16" r="2"/>'),
+      sum: function () { return { left: 'Knopf links', mid: 'Knopf mittig', right: 'Knopf rechts' }[P('pos')] + (P('labels') ? ' · mit Namen' : '') + ' · ' + ({ soft: 'Sanft', circle: 'Kreis', off: 'Ohne Animation' }[P('anim')] || ''); } },
+    { id: 'look', t: 'Farben & Design', c: '#C2477A', ic: SI('<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.8-.9 1.8-1.8 0-1.2-1-1.6-1-2.7 0-1 .8-1.7 1.8-1.7h2.2A3.7 3.7 0 0 0 20.5 10.6C20.5 6.6 16.7 3.5 12 3.5z"/><circle cx="7.6" cy="11" r="1.1" fill="currentColor"/><circle cx="10.2" cy="7.3" r="1.1" fill="currentColor"/><circle cx="14.6" cy="7.4" r="1.1" fill="currentColor"/>'),
+      sum: function () { return (ACC[P('accent')] || ACC.green).n + ' · ' + { auto: 'Hell/Dunkel automatisch', light: 'Hell', dark: 'Dunkel' }[P('look')]; } },
+    { id: 'home', t: 'Startbildschirm', c: '#2F7D5F', ic: SI('<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>'),
+      sum: function () { var k = ['hQuick', 'hNext', 'hFav', 'hRecent', 'hRooms', 'hStats', 'hBackup'], n = k.filter(function (x) { return P(x); }).length; return n + ' von ' + k.length + ' Bereichen sichtbar'; } },
+    { id: 'remind', t: 'Erinnerungen', c: '#C4611F', ic: SI(BELL),
+      sum: function () { return 'Hinweis: ' + { bell: 'Glocke', pulse: 'Pulsieren', both: 'Glocke und Pulsieren', off: 'aus' }[P('alert')] + (P('showCount') ? ' · mit Zahl' : ''); } },
+    { id: 'sound', t: 'Töne & Vibration', c: '#3563A8', ic: SI('<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+      sum: function () { var on = ['vTap', 'vMenu', 'vPage', 'vChime', 'vSwipe'].filter(function (k) { return +P(k) > 0; }).length; return (on ? U.plural(on, 'Ton', 'Töne') + ' an' : 'Töne aus') + ' · Vibration ' + { off: 'aus', light: 'leicht', strong: 'stark' }[P('haptic')]; } },
+    { id: 'use', t: 'Bedienung & Sprache', c: '#14808A', ic: SI('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'),
+      sum: function () { return (P('voice') ? 'Mikrofon an' : 'Mikrofon aus') + (P('swipe') ? ' · Wischen an' : ''); } },
+    { id: 'security', t: 'App-Sperre', c: '#3F4B55', ic: SI('<rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+      sum: function () { return W.Lock.enabled() ? 'An' + (prefs.lockCred ? ' · mit Face ID' : '') : 'Aus'; } },
+    { id: 'general', t: 'Allgemein', c: '#6B6B63', ic: SI('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8h.01"/>'),
+      sum: function () { return (recogOn() ? 'Bilderkennung an' : 'Bilderkennung aus') + ' · Speicher'; } }
+  ];
+  var SET_GROUPS = [['Darstellung', ['menu', 'look', 'home']], ['Hinweise & Bedienung', ['remind', 'sound', 'use']], ['Gerät', ['security', 'general']]];
+  function setDef(id) { for (var i = 0; i < SETS.length; i++) if (SETS[i].id === id) return SETS[i]; return null; }
+  var SET_PAGES = {
+    menu: function () {
+      return sgroup('Menü unten',
+        ssw('labels', 'Namen unter den Symbolen', 'Die Kreise rücken dafür etwas auseinander') +
+        scol('Position des Knopfs', '', sseg('pos', [['left', 'Links'], ['mid', 'Mitte'], ['right', 'Rechts']]))) +
+      sgroup('Animationen',
+        scol('Seitenwechsel', 'Was passiert, wenn du einen Bereich antippst', sseg('anim', [['soft', 'Sanft'], ['circle', 'Kreis'], ['off', 'Aus']])) +
+        scol('Tempo der Welle', '', sseg('tempo', [['fast', 'Schnell'], ['normal', 'Normal'], ['calm', 'Ruhig']])) +
+        scol('Symbol-Animationen', 'Haus hüpft, Kiste klappt auf, Nadel fällt, Glocke läutet, Tresor dreht', sseg('iconAnim', [['off', 'Aus'], ['tap', 'Beim Antippen'], ['always', 'Immer']])));
+    },
+    look: function () {
+      return sgroup('Farben',
+        scol('Akzentfarbe', 'Knöpfe, Schalter, Markierungen und der Knopf „+“', swatchesHTML()) +
+        scol('Symbolfarben', 'Jeder Bereich in eigener Farbe oder alles in der Akzentfarbe', sseg('iconColor', [['multi', 'Bunt'], ['mono', 'Einfarbig']]))) +
+      sgroup('Darstellung', scol('Design', '', sseg('look', [['auto', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']])));
+    },
+    home: function () {
+      return sgroup('Was auf dem Startbildschirm steht',
+        ssw('hQuick', 'Schnellaktionen', 'Neu erfassen, Scannen, Viele Fotos') +
+        ssw('hNext', 'Als Nächstes fällig', 'Die nächsten drei Erinnerungen') +
+        ssw('hFav', 'Favoriten', 'Mit ★ markierte Sachen, die du oft suchst') +
+        ssw('hRecent', 'Zuletzt erfasst', 'Reihe mit Fotos zum Wischen') +
+        ssw('hRooms', 'Räume', 'Schnellzugriff mit Anzahl pro Raum') +
+        ssw('hStats', 'Dein Inventar', 'Anzahl, Gesamtwert und Fotos') +
+        ssw('hBackup', 'Sicherung', 'Wann zuletzt gesichert wurde'));
+    },
+    remind: function () {
+      return sgroup('Hinweis am runden Knopf',
+        scol('Art des Hinweises', 'Solange du bei „Fällig“ noch nicht reingeschaut hast', sseg('alert', [['bell', 'Glocke'], ['pulse', 'Pulsieren'], ['both', 'Beides'], ['off', 'Aus']])) +
+        ssw('ring', 'Glocke wackelt', 'Die kleine Glocke läutet alle paar Sekunden, die Zahl rüttelt sich') +
+        ssw('pill', 'Kurzer Text-Hinweis', 'Zeigt einige Sekunden, was fällig ist, mit ✓ und „Später“') +
+        ssw('showCount', 'Zahl anzeigen', 'Rote Zahl an Glocke, Kachel und Menü') +
+        '<div class="set-row"><button class="btn small" type="button" data-set-test>Test-Erinnerung</button></div>',
+        'Die App kann nur Bescheid geben, solange sie geöffnet ist. Für Erinnerungen bei geschlossener App gibt es unter „Fällig“ den Export in den iPhone-Kalender.') +
+      sgroup('Wischen',
+        ssw('swipe', 'Wischen bei Erinnerungen', 'Nach links = erledigt, nach rechts = später') +
+        scol('„Später“ beim Wischen', '', sseg('snoozeDefault', [['1h', '1 Std.'], ['abend', 'Abend'], ['morgen', 'Morgen'], ['woche', 'Woche']])));
+    },
+    sound: function () {
+      return sgroup('Lautstärke der Töne',
+        sslider('vTap', 'Klicks beim Antippen', 'tap') + sslider('vMenu', 'Menü auf- und zuklappen', 'open') + sslider('vPage', 'Seitenwechsel', 'page') +
+        sslider('vChime', 'Glocke bei Erinnerungen', 'chime') + sslider('vSwipe', 'Wegwischen', 'swoosh') +
+        scol('Glocke wiederholen', '', sseg('chimeRepeat', [['1', '1 ×'], ['2', '2 ×']])),
+        'Ganz nach links geschoben ist der Ton aus. Ist das iPhone stumm geschaltet, bleiben alle Töne aus.') +
+      sgroup('Vibration',
+        scol('Beim Antippen und bei Erinnerungen', 'Kurzes Rütteln, passend zu den Tönen', sseg('haptic', [['off', 'Aus'], ['light', 'Leicht'], ['strong', 'Stark']])),
+        'Auf dem iPhone geht das ab iOS 18.');
+    },
+    use: function () {
+      return sgroup('Bedienung',
+        ssw('keepScroll', 'Scroll-Position merken', 'Beim Zurückgehen landest du wieder an derselben Stelle')) +
+      sgroup('Spracheingabe',
+        ssw('voice', 'Mikrofon in der Suche und beim Erfassen', 'Zum Beispiel „Wo ist das Ladekabel?“ oder „Leg die Bohrmaschine in die Garage“'),
+        W.Voice.supported() ? 'Die Erkennung läuft über Apple und braucht meist Internet. Ohne Internet nutzt du die Diktier-Taste auf der Tastatur.' : 'Dieser Browser hat keine Spracherkennung. Die Diktier-Taste auf der Tastatur geht trotzdem.');
+    },
+    security: function () {
+      var locked = W.Lock.enabled();
+      return sgroup('App-Sperre',
+        ssw('lock', 'App-Sperre', 'Beim Öffnen mit einem Code entsperren', locked) +
+        (locked ? scol('Sperren nach', 'Wie lange die App im Hintergrund sein darf', sseg('lockAfter', [['0', 'Sofort'], ['1', '1 Min.'], ['5', '5 Min.']])) +
+          (faceOk ? ssw('face', 'Face ID verwenden', 'Mit deinem Gesicht statt mit dem Code entsperren', !!prefs.lockCred) : '') +
+          '<div class="set-row"><div class="set-btns"><button class="btn small" type="button" data-lock-now>Jetzt sperren</button><button class="btn small" type="button" data-lock-code>Code ändern</button></div></div>' : ''),
+        'Die Sperre hält andere vom Durchblättern ab. Die Daten auf dem Gerät werden dadurch nicht verschlüsselt. Für Dinge, die wirklich niemand sehen soll, gibt es den Tresor im Archiv.');
+    },
+    general: function () {
+      return sgroup('Allgemein',
+        ssw('recog', 'Bilderkennung', 'Schlägt beim Fotografieren einen Namen vor. Läuft komplett auf dem Gerät, ohne Internet.', recogOn()) +
+        '<button class="set-row" type="button" data-act="storage"><span class="st"><b>Speicher</b><small>' + (DB.persistent ? 'Alle Daten liegen nur auf diesem Gerät. Tippen für Details.' : 'Speichern ist in diesem Browser nicht möglich.') + '</small></span>' + ICON.chev + '</button>');
+    }
+  };
   VIEWS.settings = function () {
-    var h = '';
-    h += sgroup('Menü unten',
-      ssw('labels', 'Namen unter den Symbolen', 'Die Kreise rücken dafür etwas auseinander') +
-      scol('Position des Knopfs', '', sseg('pos', [['left', 'Links'], ['mid', 'Mitte'], ['right', 'Rechts']])));
-    h += sgroup('Animationen',
-      scol('Seitenwechsel', 'Was passiert, wenn du einen Bereich antippst', sseg('anim', [['soft', 'Sanft'], ['circle', 'Kreis'], ['off', 'Aus']])) +
-      scol('Tempo der Welle', '', sseg('tempo', [['fast', 'Schnell'], ['normal', 'Normal'], ['calm', 'Ruhig']])) +
-      scol('Symbol-Animationen', 'Haus hüpft, Kiste klappt auf, Nadel fällt, Glocke läutet, Punkte winken', sseg('iconAnim', [['off', 'Aus'], ['tap', 'Beim Antippen'], ['always', 'Immer']])));
-    h += sgroup('Bedienung',
-      ssw('keepScroll', 'Scroll-Position merken', 'Beim Zurückgehen landest du wieder an derselben Stelle') +
-      ssw('swipe', 'Wischen bei Erinnerungen', 'Nach links = erledigt, nach rechts = später') +
-      scol('„Später“ beim Wischen', '', sseg('snoozeDefault', [['1h', '1 Std.'], ['abend', 'Abend'], ['morgen', 'Morgen'], ['woche', 'Woche']])));
-    h += sgroup('Spracheingabe',
-      ssw('voice', 'Mikrofon in der Suche und beim Erfassen', 'Zum Beispiel „Wo ist das Ladekabel?“ oder „Leg die Bohrmaschine in die Garage“'),
-      W.Voice.supported() ? 'Die Erkennung läuft über Apple und braucht meist Internet. Ohne Internet nutzt du die Diktier-Taste auf der Tastatur.' : 'Dieser Browser hat keine Spracherkennung. Die Diktier-Taste auf der Tastatur geht trotzdem.');
-    h += sgroup('Startbildschirm',
-      ssw('hQuick', 'Schnellaktionen', 'Neu erfassen, Scannen, Viele Fotos') +
-      ssw('hNext', 'Als Nächstes fällig', 'Die nächsten drei Erinnerungen') +
-      ssw('hFav', 'Favoriten', 'Mit ★ markierte Sachen, die du oft suchst') +
-      ssw('hRecent', 'Zuletzt erfasst', 'Reihe mit Fotos zum Wischen') +
-      ssw('hRooms', 'Räume', 'Schnellzugriff mit Anzahl pro Raum') +
-      ssw('hStats', 'Dein Inventar', 'Anzahl, Gesamtwert und Fotos') +
-      ssw('hBackup', 'Sicherung', 'Wann zuletzt gesichert wurde'));
-    h += sgroup('Erinnerungen',
-      scol('Hinweis am runden Knopf', 'Solange du bei „Fällig“ noch nicht reingeschaut hast', sseg('alert', [['bell', 'Glocke'], ['pulse', 'Pulsieren'], ['both', 'Beides'], ['off', 'Aus']])) +
-      ssw('ring', 'Glocke wackelt', 'Die kleine Glocke läutet alle paar Sekunden, die Zahl rüttelt sich') +
-      ssw('pill', 'Kurzer Text-Hinweis', 'Zeigt einige Sekunden, was fällig ist, mit ✓ und „Später“') +
-      ssw('showCount', 'Zahl anzeigen', 'Rote Zahl an Glocke, Kachel und Menü') +
-      '<div class="set-row"><button class="btn small" type="button" data-set-test>Test-Erinnerung</button></div>',
-      'Die App kann nur Bescheid geben, solange sie geöffnet ist. Für Erinnerungen bei geschlossener App gibt es unter „Fällig“ den Export in den iPhone-Kalender.');
-    h += sgroup('Lautstärke der Töne',
-      sslider('vTap', 'Klicks beim Antippen', 'tap') + sslider('vMenu', 'Menü auf- und zuklappen', 'open') + sslider('vPage', 'Seitenwechsel', 'page') +
-      sslider('vChime', 'Glocke bei Erinnerungen', 'chime') + sslider('vSwipe', 'Wegwischen', 'swoosh') +
-      scol('Glocke wiederholen', '', sseg('chimeRepeat', [['1', '1 ×'], ['2', '2 ×']])),
-      'Ganz nach links geschoben ist der Ton aus. Ist das iPhone stumm geschaltet, bleiben alle Töne aus.');
-    h += sgroup('Vibration',
-      scol('Beim Antippen und bei Erinnerungen', 'Kurzes Rütteln, passend zu den Tönen', sseg('haptic', [['off', 'Aus'], ['light', 'Leicht'], ['strong', 'Stark']])),
-      'Auf dem iPhone geht das ab iOS 18.');
-    h += sgroup('Farben & Darstellung',
-      scol('Akzentfarbe', 'Knöpfe, Schalter, Markierungen und der Knopf „+“', swatchesHTML()) +
-      scol('Symbolfarben', 'Jeder Bereich in eigener Farbe oder alles in der Akzentfarbe', sseg('iconColor', [['multi', 'Bunt'], ['mono', 'Einfarbig']])) +
-      scol('Design', '', sseg('look', [['auto', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']])));
-    var locked = W.Lock.enabled();
-    h += sgroup('Sicherheit',
-      ssw('lock', 'App-Sperre', 'Beim Öffnen mit einem Code entsperren', locked) +
-      (locked ? scol('Sperren nach', 'Wie lange die App im Hintergrund sein darf', sseg('lockAfter', [['0', 'Sofort'], ['1', '1 Min.'], ['5', '5 Min.']])) +
-        (faceOk ? ssw('face', 'Face ID verwenden', 'Mit deinem Gesicht statt mit dem Code entsperren', !!prefs.lockCred) : '') +
-        '<div class="set-row"><div class="set-btns"><button class="btn small" type="button" data-lock-now>Jetzt sperren</button><button class="btn small" type="button" data-lock-code>Code ändern</button></div></div>' : ''),
-      'Die Sperre hält andere vom Durchblättern ab. Die Daten auf dem Gerät werden dadurch nicht verschlüsselt.');
-    h += sgroup('Allgemein',
-      ssw('recog', 'Bilderkennung', 'Schlägt beim Fotografieren einen Namen vor. Läuft komplett auf dem Gerät, ohne Internet.', recogOn()) +
-      '<button class="set-row" type="button" data-act="storage"><span class="st"><b>Speicher</b><small>' + (DB.persistent ? 'Alle Daten liegen nur auf diesem Gerät. Tippen für Details.' : 'Speichern ist in diesem Browser nicht möglich.') + '</small></span>' + ICON.chev + '</button>');
-    h += '<p class="meta-line" style="margin-top:18px">Wo ist was · Version ' + APP_VERSION + (U.isStandalone() ? ' · installiert' : '') + '</p>';
-    return h;
+    var page = S.arg && SET_PAGES[S.arg];
+    if (page) return '<div class="set-sub">' + page() + '</div>';
+    return SET_GROUPS.map(function (g) {
+      return '<div class="set-group"><div class="set-title">' + g[0] + '</div><div class="set-card">' + g[1].map(function (id) {
+        var d = setDef(id);
+        return '<a class="set-row set-nav" href="#/settings/' + id + '"><span class="sic" style="--sc:' + d.c + '">' + d.ic + '</span>' +
+          '<span class="st"><b>' + esc(d.t) + '</b><small>' + esc(d.sum()) + '</small></span>' + ICON.chev + '</a>';
+      }).join('') + '</div></div>';
+    }).join('') + '<p class="meta-line" style="margin-top:18px">Wo ist was · Version ' + APP_VERSION + (U.isStandalone() ? ' · installiert' : '') + '</p>';
   };
   function isDark() {
     var look = P('look');
@@ -1020,7 +1072,7 @@
     d.style.setProperty('--accent', c[0]);
     d.style.setProperty('--accent-soft', c[1]);
     d.style.setProperty('--accent-ink', dk ? '#0F1513' : '#FFFFFF');
-    ['home', 'items', 'places', 'due', 'more'].forEach(function (k) {
+    ['home', 'items', 'places', 'due', 'archive', 'more'].forEach(function (k) {
       if (P('iconColor') === 'mono') d.style.setProperty('--c-' + k, c[0]); else d.style.removeProperty('--c-' + k);
     });
     U.$$('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', getComputedStyle(d).getPropertyValue('--bg').trim() || m.getAttribute('content')); });
@@ -2916,6 +2968,7 @@
       if (p && p.parentId && M.place(p.parentId)) go('place/' + encodeURIComponent(p.parentId));
       else go('room/' + encodeURIComponent(p ? (M.placeRoomId(p) || 'none') : 'none'));
     } else if (S.route === 'room') go('places');
+    else if (S.route === 'settings' && S.arg) go('settings');
     else if (TOP_ROUTES.indexOf(S.route) >= 0) go('');
     else go('more');
   });

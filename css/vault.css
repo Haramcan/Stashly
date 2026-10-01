@@ -215,6 +215,15 @@
 #vaultui .dial.armed .dknob{transform:rotate(60deg)}
 #vaultui .dial.turn .dknob{transform:rotate(250deg)}
 #vaultui .dialbtn{border:0;background:transparent;padding:0;border-radius:50%}
+#vaultui .dial .dring{transform-box:view-box;transform-origin:50% 50%;transition:transform .35s var(--spring)}
+#vaultui .dial.turn .dring{transform:rotate(-180deg)!important;transition-duration:.55s}
+#vaultui .dial.sm{opacity:.95;margin-bottom:-2px}
+#vaultui .vclose{align-self:flex-start;width:44px;height:44px;border-radius:50%;border:0;background:rgba(236,231,220,.08);color:var(--v-ink);display:grid;place-items:center;padding:0;flex:none}
+#vaultui .vclose svg{width:20px;height:20px}
+#vaultui .vclose:active{transform:scale(.92)}
+#vaultui .kp button.txt{font-family:var(--f-body);font-weight:600;font-size:15px;width:auto;min-width:70px;padding:0 2px;justify-self:center;border-radius:35px;white-space:nowrap}
+#vaultui .kp button.held{background:rgba(199,161,90,.22);transform:scale(.94)}
+@media (prefers-reduced-motion:reduce){#vaultui .dial .dring,#vaultui .dial .dknob{transition:none}}
 
 /* Einstellungen */
 #vaultui .sgt{font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:16px 6px 7px}

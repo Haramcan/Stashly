@@ -1,5 +1,5 @@
 /* Wo ist was - Service Worker: macht die App offline nutzbar. Automatisch erzeugt von tools/build-sw.ps1 */
-const CACHE = 'wiw-4b30a6d89a5e';
+const CACHE = 'wiw-941849c54a84';
 const ASSETS = [
   './',
   './css/app.css',

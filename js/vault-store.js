@@ -59,12 +59,11 @@
     var created, prof;
     return C.createProfile(tarnCode, recoveryKey).then(function (r) {
       created = r; prof = created.profile;
-      // Bei „jeder Code“ zusätzlich mit dem Geräteschlüssel verpacken, damit jeder Fehlcode den Tarn-Tresor öffnet
-      if (mode === 'any') {
-        return deviceKey().then(function (dk) {
-          return C.wrapMasterWith(created.master, dk).then(function (w) { prof.wrapAny = w; });
-        });
-      }
+      // Immer zusätzlich mit dem Geräteschlüssel verpacken: dann öffnen Face ID, Schnellwechsel und
+      // Modus „jeder Code“ den Tarn-Tresor. Ob ein Fehlcode ihn öffnet, entscheidet allein tarnMode.
+      return deviceKey().then(function (dk) {
+        return C.wrapMasterWith(created.master, dk).then(function (w) { prof.wrapAny = w; });
+      });
     }).then(function () {
       return C.encryptJSON(created.master, EMPTY());
     }).then(function (encData) {
@@ -86,7 +85,18 @@
   }
   function finishOpen(mk, dec) {
     master = mk; decoy = dec;
-    return loadData(dec).then(function (d) { data = d; open = true; return { decoy: dec }; });
+    return loadData(dec).then(function (d) { data = d; open = true; return dec ? ensureDecoyDevWrap() : null; })
+      .then(function () { return { decoy: dec }; });
+  }
+  // Ältere Tarn-Tresore (Modus „Nur Tarn-Code“) hatten keinen Geräteschlüssel. Beim ersten Öffnen nachrüsten,
+  // damit Face ID und Schnellwechsel danach auch den Tarn-Tresor öffnen.
+  function ensureDecoyDevWrap() {
+    var dprof = DB.meta[K.decoyProf];
+    if (!dprof || dprof.wrapAny) return Promise.resolve();
+    return deviceKey().then(function (dk) { return C.wrapMasterWith(master, dk); }).then(function (w) {
+      var p = Object.assign({}, DB.meta[K.decoyProf]); p.wrapAny = w;
+      return DB.setMeta(K.decoyProf, p);
+    }).catch(function () {});
   }
 
   // Code eingeben: echter Code → echter Tresor; Tarn-Code → Tarn-Tresor;
@@ -94,14 +104,16 @@
   V.unlock = function (code) {
     var prof = DB.meta[K.prof];
     return C.openWithCode(prof, code).then(function (mk) {
-      return finishOpen(mk, false);
+      // Der echte Code beendet den „Tarn-Modus jetzt“
+      return (V.opts().tarnNow ? V.setOpt('tarnNow', false) : Promise.resolve()).then(function () { return finishOpen(mk, false); });
     }, function () {
       if (!V.hasDecoy()) return Promise.reject(new Error('Falscher Code'));
       var dprof = DB.meta[K.decoyProf];
       return C.openWithCode(dprof, code).then(function (mk) {
         return finishOpen(mk, true);
       }, function () {
-        if (V.opts().tarnMode !== 'any' || !dprof.wrapAny) return Promise.reject(new Error('Falscher Code'));
+        var o = V.opts();
+        if ((o.tarnMode !== 'any' && !o.tarnNow) || !dprof.wrapAny) return Promise.reject(new Error('Falscher Code'));
         return deviceKey().then(function (dk) { return C.unwrapMasterWith(dprof.wrapAny, dk); }).then(function (mk) { return finishOpen(mk, true); });
       });
     });
@@ -117,28 +129,29 @@
 
   /* ---------- Face ID (Geräteschlüssel als Komfort-Weg) ---------- */
   // Nach erfolgreicher Face-ID-Prüfung aufrufen. Öffnet echten oder Tarn-Tresor über den Geräteschlüssel.
-  V.enableFace = function () {
+  V.enableFace = function (credId) {
     // Hauptschlüssel des aktuell offenen Profils zusätzlich mit dem Geräteschlüssel verpacken
     if (!open) return Promise.reject(new Error('Tresor ist nicht offen'));
     var key = decoy ? K.decoyProf : K.prof;
     return deviceKey().then(function (dk) { return C.wrapMasterWith(master, dk); }).then(function (w) {
       var p = Object.assign({}, DB.meta[key]); p.wrapFace = w;
       return DB.setMeta(key, p);
-    }).then(function () { return V.setOpts({ faceOn: true }); });
+    }).then(function () { return V.setOpts(credId ? { faceOn: true, faceCred: credId } : { faceOn: true }); });
   };
   V.disableFace = function () {
     var p = Object.assign({}, DB.meta[K.prof]); delete p.wrapFace;
-    return DB.setMeta(K.prof, p).then(function () { return V.setOpts({ faceOn: false }); });
+    return DB.setMeta(K.prof, p).then(function () { return V.setOpts({ faceOn: false, faceCred: null }); });
   };
-  // wantReal=true (Drehrad/langes Drücken) öffnet immer den echten Tresor.
+  // wantReal=true (Drehrad/langes Drücken) öffnet den echten Tresor.
   // Sonst entscheidet die Option faceReal: true = echter Tresor, false = Tarn-Tresor (falls vorhanden).
+  // Ist „Tarn-Modus jetzt“ an, öffnet Face ID immer nur den Tarn-Tresor.
   V.faceOpen = function (wantReal) {
     var opts = V.opts();
-    var toDecoy = !wantReal && V.hasDecoy() && opts.faceReal === false;
+    var toDecoy = V.hasDecoy() && (!!opts.tarnNow || (!wantReal && !opts.faceReal));
     var prof = DB.meta[toDecoy ? K.decoyProf : K.prof];
     if (!prof) return Promise.reject(new Error('Kein Tresor'));
     var wrap = prof.wrapFace || (toDecoy ? prof.wrapAny : null);
-    if (!wrap) return Promise.reject(new Error('Face ID nicht eingerichtet'));
+    if (!wrap) return Promise.reject(new Error(toDecoy ? 'Tarn-Tresor einmal mit dem Tarn-Code öffnen' : 'Face ID nicht eingerichtet'));
     return deviceKey().then(function (dk) { return C.unwrapMasterWith(wrap, dk); }).then(function (mk) { return finishOpen(mk, toDecoy); });
   };
 
