@@ -29,25 +29,36 @@
     if (!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(function () { return false; });
   };
+  // Während iOS die Face-ID-Abfrage zeigt, kann die Seite kurz als „im Hintergrund“ gelten.
+  // Das darf weder die App-Sperre noch den Tresor auslösen.
+  var authN = 0, authUntil = 0;
+  function guard(p) {
+    authN++;
+    var done = function () { authN--; authUntil = Date.now() + 2000; };
+    return p.then(function (v) { done(); return v; }, function (e) { done(); throw e; });
+  }
+  L.authBusy = function () { return authN > 0 || Date.now() < authUntil; };
   // Muss direkt aus einem Antippen heraus aufgerufen werden
   L.enrollFace = function (label) {
-    return navigator.credentials.create({ publicKey: {
+    if (!navigator.credentials || !window.PublicKeyCredential) return Promise.reject(new Error('unsupported'));
+    return guard(navigator.credentials.create({ publicKey: {
       challenge: rand(32),
       rp: { name: 'Wo ist was', id: location.hostname },
       user: { id: rand(16), name: label || 'wo-ist-was', displayName: label || 'Wo ist was' },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
       timeout: 60000
-    } }).then(function (c) { return b64(c.rawId); });
+    } })).then(function (c) { return b64(c.rawId); });
   };
   function verifyFace() { return L.verifyFaceWith(cfg().lockCred); }
   // Prüft Face ID mit einem bestimmten Passkey (auch für den Tresor). Muss direkt aus einem Antippen heraus aufgerufen werden.
   L.verifyFaceWith = function (id) {
     if (!id) return Promise.reject(new Error('kein Passkey'));
-    return navigator.credentials.get({ publicKey: {
+    if (!navigator.credentials || !window.PublicKeyCredential) return Promise.reject(new Error('unsupported'));
+    return guard(navigator.credentials.get({ publicKey: {
       challenge: rand(32), rpId: location.hostname, userVerification: 'required', timeout: 60000,
       allowCredentials: [{ type: 'public-key', id: unb64(id), transports: ['internal'] }]
-    } });
+    } }));
   };
 
   /* ---------- Oberfläche ---------- */
@@ -159,6 +170,7 @@
   };
   // Nach der eingestellten Zeit im Hintergrund wieder sperren
   document.addEventListener('visibilitychange', function () {
+    if (L.authBusy()) { hiddenAt = 0; return; }
     if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
     if (!L.enabled() || !hiddenAt) return;
     // Offene Sperre zum Entsperren: nichts zu tun. Offenes „Code ändern“ zählt nicht als gesperrt,
