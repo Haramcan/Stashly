@@ -52,6 +52,10 @@
     DB.items.forEach(function (i) { itemMap.set(i.id, i); });
     sortedRooms = DB.rooms.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0) || natural(a.name, b.name); });
   }
+  // Archivierte Gegenstände sind weiterhin gespeichert, aber aus dem Alltag ausgeblendet.
+  function liveItems() { return DB.items.filter(function (it) { return !it.archived; }); }
+  M.liveItems = liveItems;
+  M.archivedItems = function () { return DB.items.filter(function (it) { return it.archived; }); };
   M.rooms = function () { return sortedRooms; };
   M.room = function (id) { return id ? roomMap.get(id) || null : null; };
   M.place = function (id) { return id ? placeMap.get(id) || null : null; };
@@ -112,9 +116,9 @@
   };
   M.itemsInPlace = function (id, deep) {
     var set = deep ? M.descendantIds(id) : new Set([id]);
-    return DB.items.filter(function (it) { return it.placeId && set.has(it.placeId); });
+    return DB.items.filter(function (it) { return !it.archived && it.placeId && set.has(it.placeId); });
   };
-  M.itemsInRoom = function (rid) { return DB.items.filter(function (it) { return M.roomIdOf(it) === rid; }); };
+  M.itemsInRoom = function (rid) { return DB.items.filter(function (it) { return !it.archived && M.roomIdOf(it) === rid; }); };
   M.placesInRoom = function (rid) { return DB.places.filter(function (p) { return M.placeRoomId(p) === rid || (rid === '' && !roomMap.has(M.placeRoomId(p))); }); };
   M.groupByRoom = function (items) {
     var groups = M.rooms().map(function (r) { return { id: r.id, name: r.name, items: [], value: 0 }; });
@@ -154,6 +158,7 @@
   M.due = function () {
     var r = { expiry: [], tasks: [], warranty: [], shopping: [], lent: [], backup: false, count: 0 };
     DB.items.forEach(function (it) {
+      if (it.archived) return;
       var n = U.daysUntil(it.expiry);
       if (n !== null && n <= 14) r.expiry.push({ it: it, n: n });
       var w = U.daysUntil(it.warranty);
@@ -176,6 +181,7 @@
   M.reminders = function () {
     var done = DB.meta.dueDone || {}, snz = DB.meta.dueSnooze || {}, now = Date.now(), all = [];
     DB.items.forEach(function (it) {
+      if (it.archived) return;
       var loc = M.shortLoc(it);
       var n = U.daysUntil(it.expiry);
       if (n !== null && n <= 14) all.push({ key: 'e:' + it.id + ':' + it.expiry, type: 'expiry', it: it, n: n, title: n < 0 ? 'Abgelaufen' : 'Läuft ab', text: it.name + ' · ' + loc, when: U.relDays(n) });
@@ -224,7 +230,7 @@
    * Zustand & Navigation
    * ========================================================= */
   var S = { route: 'home', arg: null, q: '', room: prefs.room || 'all', status: 'all', sort: prefs.sort || 'new', selecting: false, selected: new Set(), ready: false };
-  var ROUTES = ['home', 'items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving', 'settings'];
+  var ROUTES = ['home', 'items', 'places', 'room', 'place', 'due', 'more', 'sortout', 'moving', 'settings', 'archive'];
   var TOP_ROUTES = ['items', 'places', 'due', 'more'];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ''), parts = h.split('/');
@@ -271,7 +277,7 @@
   }
   function initials(name) { var w = String(name || '?').trim().split(/\s+/); return ((w[0] || '?')[0] + (w[1] ? w[1][0] : '')).toUpperCase(); }
 
-  var TITLES = { home: 'Wo ist was', items: 'Dinge', places: 'Orte', due: 'Fällig', more: 'Mehr', sortout: 'Aussortieren', moving: 'Umzug', settings: 'Einstellungen' };
+  var TITLES = { home: 'Wo ist was', items: 'Dinge', places: 'Orte', due: 'Fällig', more: 'Mehr', sortout: 'Aussortieren', moving: 'Umzug', settings: 'Einstellungen', archive: 'Archiv' };
   var SW = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
   var BELL = '<g class="bell"><path d="M6 9.5a6 6 0 0 1 12 0c0 5.3 2.2 7 2.2 7H3.8S6 14.8 6 9.5z"/><path d="M10 20a2 2 0 0 0 4 0"/></g>';
   /* Symbole mit beweglichen Teilen (für die eigene Animation je Symbol) */
@@ -301,10 +307,10 @@
     { id: 'due', path: 'due', label: 'Fällig' },
     { id: 'more', path: 'more', label: 'Mehr' }
   ];
-  function sectionOf(r) { return r === 'room' || r === 'place' ? 'places' : (r === 'sortout' || r === 'moving' || r === 'settings') ? 'more' : r; }
+  function sectionOf(r) { return r === 'room' || r === 'place' ? 'places' : (r === 'sortout' || r === 'moving' || r === 'settings' || r === 'archive') ? 'more' : r; }
   function navMeta(id, due) {
     if (id === 'home') return 'Übersicht';
-    if (id === 'items') return U.plural(DB.items.length, 'Gegenstand', 'Gegenstände');
+    if (id === 'items') return U.plural(liveItems().length, 'Gegenstand', 'Gegenstände');
     if (id === 'places') {
       var n = DB.places.length;
       return U.plural(M.rooms().length, 'Raum', 'Räume') + (n ? ' · ' + U.plural(n, 'Möbel/Kiste', 'Möbel/Kisten') : '');
@@ -513,6 +519,7 @@
     var parsed = W.Search.parse(S.q, { rooms: DB.rooms, places: DB.places });
     var placeSet = parsed.placeId ? M.descendantIds(parsed.placeId) : null;
     var base = DB.items.filter(function (it) {
+      if (it.archived) return false;
       var rid = M.roomIdOf(it);
       if (S.room === 'none' && rid) return false;
       if (S.room !== 'all' && S.room !== 'none' && rid !== S.room) return false;
@@ -580,20 +587,21 @@
         (act.length ? act.slice(0, 3).map(nextRowHTML).join('') : '<div class="next-empty">Nichts fällig. Alles erledigt.</div>') + '</div></section>';
     }
     if (P('hFav')) {
-      var favs = DB.items.filter(function (it) { return it.fav; }).sort(function (a, b) { return natural(a.name, b.name); });
+      var favs = DB.items.filter(function (it) { return it.fav && !it.archived; }).sort(function (a, b) { return natural(a.name, b.name); });
       h += '<section class="hsec"><div class="hhead"><h2>Favoriten</h2></div>' + (favs.length ? '<div class="strip">' + favs.map(miniHTML).join('') + '</div>' :
         '<div class="next"><div class="next-empty">Tippe bei einem Gegenstand oben auf ★, dann steht er hier.</div></div>') + '</section>';
     }
-    var recent = DB.items.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 8);
+    var recent = liveItems().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 8);
     if (P('hRecent') && recent.length) h += '<section class="hsec"><div class="hhead"><h2>Zuletzt erfasst</h2><a class="linkish" href="#/items">Alle</a></div><div class="strip">' + recent.map(miniHTML).join('') + '</div></section>';
     if (P('hRooms') && M.rooms().length) {
       h += '<section class="hsec"><div class="hhead"><h2>Räume</h2><a class="linkish" href="#/places">Alle</a></div><div class="strip">' + M.rooms().map(function (r) {
         return '<a class="rchip" href="#/room/' + encodeURIComponent(r.id) + '"><span class="dot" style="--c:' + U.safeColor(r.color) + '"></span>' + esc(r.name) + ' <small>' + M.itemsInRoom(r.id).length + '</small></a>';
       }).join('') + '</div></section>';
     }
-    if (P('hStats') && DB.items.length) {
-      var total = DB.items.reduce(function (s2, it) { return s2 + M.val(it); }, 0), photos = DB.items.reduce(function (s2, it) { return s2 + (it.photos || []).length; }, 0);
-      h += '<section class="hsec"><div class="hhead"><h2>Dein Inventar</h2></div><div class="stats"><div class="stat"><b>' + DB.items.length + '</b><small>Gegenstände</small></div>' +
+    var liveStats = liveItems();
+    if (P('hStats') && liveStats.length) {
+      var total = liveStats.reduce(function (s2, it) { return s2 + M.val(it); }, 0), photos = liveStats.reduce(function (s2, it) { return s2 + (it.photos || []).length; }, 0);
+      h += '<section class="hsec"><div class="hhead"><h2>Dein Inventar</h2></div><div class="stats"><div class="stat"><b>' + liveStats.length + '</b><small>Gegenstände</small></div>' +
         '<div class="stat"><b>' + U.money(total).replace(/,00\s?€$/, ' €') + '</b><small>Gesamtwert</small></div><div class="stat"><b>' + photos + '</b><small>Fotos</small></div></div></section>';
     }
     if (P('hBackup') && DB.items.length) {
@@ -613,9 +621,9 @@
     }
     // Raum-Chips
     var counts = {}, none = 0;
-    DB.items.forEach(function (it) { var rid = M.roomIdOf(it); if (rid) counts[rid] = (counts[rid] || 0) + 1; else none++; });
+    DB.items.forEach(function (it) { if (it.archived) return; var rid = M.roomIdOf(it); if (rid) counts[rid] = (counts[rid] || 0) + 1; else none++; });
     if (S.room !== 'all' && S.room !== 'none' && !M.room(S.room)) S.room = 'all';
-    h += '<div class="chips" role="toolbar" aria-label="Nach Raum filtern"><button class="chip" type="button" data-chip="all" aria-pressed="' + (S.room === 'all') + '">Alle <span class="n">' + DB.items.length + '</span></button>';
+    h += '<div class="chips" role="toolbar" aria-label="Nach Raum filtern"><button class="chip" type="button" data-chip="all" aria-pressed="' + (S.room === 'all') + '">Alle <span class="n">' + liveItems().length + '</span></button>';
     M.rooms().forEach(function (r) {
       h += '<button class="chip" type="button" data-chip="' + esc(r.id) + '" aria-pressed="' + (S.room === r.id) + '"><span class="dot" style="--c:' + U.safeColor(r.color) + '"></span>' + esc(r.name) + ' <span class="n">' + (counts[r.id] || 0) + '</span></button>';
     });
@@ -635,12 +643,12 @@
       [['new', 'Neueste zuerst'], ['name', 'Name A–Z'], ['room', 'Nach Ort'], ['value', 'Wert absteigend'], ['expiry', 'Ablaufdatum']].map(function (o) {
         return '<option value="' + o[0] + '"' + (S.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select>' +
-      (DB.items.length ? '<button class="btn small" type="button" data-act="select">Auswählen</button>' : '') + '</div>';
+      (liveItems().length ? '<button class="btn small" type="button" data-act="select">Auswählen</button>' : '') + '</div>';
 
     if (res.list.length) h += gridHTML(res.list);
     if (res.partial.length) h += '<div class="sub-head">Passt teilweise</div>' + gridHTML(res.partial);
     if (!res.list.length && !res.partial.length) {
-      if (!DB.items.length) {
+      if (!liveItems().length) {
         h += '<div class="empty"><h2>Noch nichts erfasst</h2><p>Fotografiere einen Gegenstand und wähle, wo er liegt. Mit „Viele Fotos auf einmal“ erfasst du ein ganzes Regal in einem Rutsch.</p>' +
           '<div class="row-btns"><button class="btn btn-primary" type="button" data-act="add-item">Ersten Gegenstand anlegen</button><button class="btn" type="button" data-act="add-batch">Viele Fotos auf einmal</button></div></div>';
       } else {
@@ -822,7 +830,7 @@
   };
 
   VIEWS.more = function () {
-    var items = DB.items, total = items.reduce(function (s, it) { return s + M.val(it); }, 0);
+    var items = liveItems(), total = items.reduce(function (s, it) { return s + M.val(it); }, 0);
     var photos = items.reduce(function (s, it) { return s + (it.photos || []).length; }, 0);
     var h = '<div class="menu-list" style="margin-bottom:14px"><a class="row hl" href="#/settings"><span class="ric">' + NI.gear + '</span><span class="row-txt"><span class="row-name">Einstellungen</span>' +
       '<span class="row-meta">Menü, Töne, Farben, Erinnerungen, Spracheingabe, Sperre</span></span>' + ICON.chev + '</a></div>';
@@ -854,7 +862,7 @@
       return href ? '<a class="row" href="' + href + '">' + inner + '</a>' : '<button class="row" type="button" data-act="' + act + '">' + inner + '</button>';
     }
     h += '<div class="sub-head">Privat</div><div class="menu-list">' +
-      row('vault', 'Archiv & Tresor', 'Dinge wegschließen, Fotos, Dokumente und Passwörter – verschlüsselt und nur auf diesem Gerät') +
+      row('', 'Archiv & Tresor', 'Weggeräumtes, Verliehenes und der verschlüsselte Tresor für Fotos, Dokumente und Passwörter', '#/archive') +
       '</div>';
     h += '<div class="sub-head">Werkzeuge</div><div class="menu-list">' +
       row('', 'Aussortieren', so.length ? U.plural(so.length, 'Sache', 'Sachen') + (soValue ? ' · ' + U.money(soValue) + ' möglicher Erlös' : '') : 'Dinge zum Verkaufen, Verschenken oder Entsorgen sammeln', '#/sortout') +
@@ -869,6 +877,39 @@
       row('restore', 'Sicherung einspielen', 'Aus einer ZIP-Sicherung oder dem JSON-Export der claude.ai-Version') +
       '</div>';
     h += '<p class="meta-line" style="margin-top:18px">Wo ist was · Version ' + APP_VERSION + (U.isStandalone() ? ' · installiert' : '') + '</p>';
+    return h;
+  };
+
+  /* ---------- Archiv ---------- */
+  function archReason(it) {
+    var w = it.arch || {};
+    if (w.k === 'lent') { var d = w.due ? U.daysUntil(w.due) : null; return 'verliehen an ' + (w.to || 'jemanden') + (d != null ? (d < 0 ? ' · ' + U.plural(-d, 'Tag', 'Tage') + ' überfällig' : ' · zurück bis ' + U.fmtDay(w.due)) : ''); }
+    if (w.k === 'stored') return 'eingelagert' + (w.where ? ' · ' + w.where : '');
+    if (w.k === 'broken') return 'kaputt oder in Reparatur';
+    return M.shortLoc(it);
+  }
+  function archRow(it) {
+    var ph = (it.photos || [])[0], late = it.arch && it.arch.k === 'lent' && it.arch.due && U.daysUntil(it.arch.due) < 0;
+    var thumb = ph ? '<span class="ric ric-photo">' + imgTag(ph.t || ph.id, '', true) + '</span>' : '<span class="ric">' + esc(initials(it.name)) + '</span>';
+    return '<div class="row arch-row" data-item="' + esc(it.id) + '" role="button" tabindex="0">' + thumb +
+      '<span class="row-txt"><span class="row-name">' + esc(it.name) + '</span><span class="row-meta' + (late ? ' late' : '') + '">' + esc(archReason(it)) + '</span></span>' +
+      '<button class="icon-btn" type="button" data-unarch="' + esc(it.id) + '" aria-label="' + esc(it.name) + ' zurückholen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button></div>';
+  }
+  VIEWS.archive = function () {
+    var arch = M.archivedItems();
+    var hasVault = !!(W.Vault && W.Vault.available());
+    var h = '';
+    if (hasVault) {
+      var set = W.Vault.configured();
+      h += '<button class="row vault-card" type="button" data-act="vault"><span class="ric vault-ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>' +
+        '<span class="row-txt"><span class="row-name">Tresor</span><span class="row-meta">' + (set ? 'Verschlossen · verschlüsselt, nur auf diesem Gerät' : 'Noch nicht eingerichtet · Fotos, Dokumente, Passwörter') + '</span></span>' + ICON.chev + '</button>';
+    }
+    var lent = arch.filter(function (it) { return it.arch && it.arch.k === 'lent'; });
+    var rest = arch.filter(function (it) { return !(it.arch && it.arch.k === 'lent'); });
+    if (lent.length) h += '<div class="sub-head">Verliehen</div><div class="menu-list">' + lent.map(archRow).join('') + '</div>';
+    h += '<div class="sub-head">Archiviert</div>';
+    h += rest.length ? '<div class="menu-list">' + rest.map(archRow).join('') + '</div>'
+      : '<div class="empty"><h2>Nichts archiviert</h2><p>Dinge, die du gerade nicht brauchst, legst du über „Archivieren“ im Detail eines Gegenstands hier ab. Sie verschwinden dann aus Listen, Suche und Erinnerungen.</p></div>';
     return h;
   };
 
@@ -990,7 +1031,7 @@
 
   VIEWS.sortout = function () {
     var groups = ['verkaufen', 'verschenken', 'entsorgen'].map(function (k) {
-      return { k: k, items: DB.items.filter(function (it) { return it.disposition === k; }).sort(function (a, b) { return natural(a.name, b.name); }) };
+      return { k: k, items: DB.items.filter(function (it) { return !it.archived && it.disposition === k; }).sort(function (a, b) { return natural(a.name, b.name); }) };
     });
     var any = groups.some(function (g) { return g.items.length; });
     var h = '<p class="lead" style="margin-bottom:14px">Markiere Dinge beim Bearbeiten unter „Aussortieren“ oder wähle in der Liste mehrere aus. Hier sammelst du sie, bis sie weg sind.</p>';
@@ -1467,11 +1508,20 @@
     if ((it.tags || []).length) h += '<div class="tags">' + it.tags.map(function (t) { return '<button class="tag" type="button" data-tag="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>';
     if (it.notes) h += '<p class="notes">' + esc(it.notes) + '</p>';
     h += placeTimeline(it);
-    if (W.VaultUI) {
-      h += '<div class="menu-list" style="margin-top:14px"><button class="row" type="button" data-dact="tovault"><span class="ric">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/></svg>' +
-        '</span><span class="row-txt"><span class="row-name">In den Tresor legen</span><span class="row-meta">Verschlüsselt wegschließen, mit Fotos. Danach nur mit dem Tresor-Code sichtbar.</span></span>' + ICON.chev + '</button></div>';
+    h += '<div class="menu-list" style="margin-top:14px">';
+    if (it.archived) {
+      h += '<button class="row" type="button" data-dact="unarchive"><span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span>' +
+        '<span class="row-txt"><span class="row-name">Aus dem Archiv zurückholen</span><span class="row-meta">' + esc(archReason(it)) + '</span></span>' + ICON.chev + '</button>';
+    } else {
+      h += '<button class="row" type="button" data-dact="archive"><span class="ric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="m9.5 13 2.5 2.5 2.5-2.5M12 10.5v5"/></svg></span>' +
+        '<span class="row-txt"><span class="row-name">Archivieren</span><span class="row-meta">Wegräumen, verleihen oder einlagern. Verschwindet aus Listen und Erinnerungen.</span></span>' + ICON.chev + '</button>';
     }
+    if (W.VaultUI && !it.archived) {
+      h += '<button class="row" type="button" data-dact="tovault"><span class="ric">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/></svg>' +
+        '</span><span class="row-txt"><span class="row-name">In den Tresor legen</span><span class="row-meta">Verschlüsselt wegschließen, mit Fotos. Danach nur mit dem Tresor-Code sichtbar.</span></span>' + ICON.chev + '</button>';
+    }
+    h += '</div>';
     if ((it.history || []).length) {
       h += '<details class="plain"><summary>Verlauf (' + it.history.length + ')</summary><ul class="hist" style="margin-top:8px">' + it.history.slice().reverse().slice(0, 20).map(function (e) {
         return '<li><b>' + new Date(e.t).toLocaleDateString('de-DE') + '</b> ' + esc(e.text) + '</li>';
@@ -1542,8 +1592,38 @@
         updateItem(it, { lentTo: v, lentSince: U.today() }, 'Verliehen an ' + v).then(function () { U.toast('Verliehen an ' + v); });
       });
       if (a === 'tovault') sendToVault(it);
+      if (a === 'archive') openArchiveChooser(it);
+      if (a === 'unarchive') { unarchiveItem(it); closeSheet($('#sheetDetail')); }
     }
   });
+  /* Archivieren mit Grund */
+  function openArchiveChooser(it) {
+    openMenu('„' + it.name + '“ archivieren', [
+      { label: 'Einfach wegräumen', meta: 'Brauche ich gerade nicht', run: function () { archiveItem(it, { k: 'plain' }); } },
+      { label: 'Verliehen', meta: 'An wen und bis wann', run: function () { lendArchive(it); } },
+      { label: 'Eingelagert', meta: 'Woanders untergebracht', run: function () { openPrompt('Eingelagert', 'Wo?', '', { placeholder: 'z. B. bei Mama im Keller' }, function (v) { archiveItem(it, { k: 'stored', where: (v || '').trim() }); }); } },
+      { label: 'Kaputt oder in Reparatur', meta: 'Kommt vielleicht wieder', run: function () { archiveItem(it, { k: 'broken' }); } }
+    ]);
+  }
+  function lendArchive(it) {
+    openPrompt('Verliehen', 'An wen?', '', { placeholder: 'Name' }, function (v) {
+      if (!v) return;
+      // Rückgabe standardmäßig in zwei Wochen; das genaue Datum kann man beim Bearbeiten ändern
+      archiveItem(it, { k: 'lent', to: v.trim(), due: U.dayStr(new Date(Date.now() + 14 * 864e5)) });
+    });
+  }
+  function archiveItem(it, arch) {
+    var txt = arch.k === 'lent' ? 'Verliehen an ' + arch.to : arch.k === 'stored' ? 'Eingelagert' + (arch.where ? ': ' + arch.where : '') : arch.k === 'broken' ? 'Als kaputt archiviert' : 'Archiviert';
+    arch.since = U.today ? U.today() : U.dayStr(new Date());
+    updateItem(it, { archived: true, arch: arch }, txt).then(function () {
+      closeSheet($('#sheetDetail'));
+      U.toast('„' + it.name + '“ liegt im Archiv', { action: 'Rückgängig', onAction: function () { updateItem(M.item(it.id) || it, { archived: false, arch: null }); } });
+    });
+  }
+  function unarchiveItem(it) {
+    if (!it) return;
+    updateItem(it, { archived: false, arch: null }, 'Aus dem Archiv zurückgeholt').then(function () { U.toast('„' + it.name + '“ ist wieder da'); });
+  }
   /* Gegenstand verschlüsselt in den Tresor verschieben: Schnappschuss an den Tresor übergeben,
      der die Fotos verschlüsselt. Erst wenn das geklappt hat, wird das Original gelöscht. */
   function sendToVault(it) {
@@ -2088,7 +2168,7 @@
   $('#rDelete').addEventListener('click', function () {
     if (!roomDraft || !roomDraft.room) return;
     var room = roomDraft.room;
-    var items = DB.items.filter(function (it) { return it.roomId === room.id; });
+    var items = DB.items.filter(function (it) { return !it.archived && it.roomId === room.id; });
     var places = DB.places.filter(function (p) { return p.roomId === room.id; });
     var parts = [];
     if (items.length) parts.push(U.plural(items.length, 'Gegenstand', 'Gegenstände'));
@@ -2174,7 +2254,7 @@
   $('#pDelete').addEventListener('click', function () {
     if (!placeDraft || !placeDraft.place) return;
     var p = placeDraft.place, parent = M.place(p.parentId), rid = M.placeRoomId(p);
-    var items = DB.items.filter(function (it) { return it.placeId === p.id; });
+    var items = DB.items.filter(function (it) { return !it.archived && it.placeId === p.id; });
     var kids = DB.places.filter(function (x) { return x.parentId === p.id; });
     var dest = parent ? M.placeLabel(parent) : ((M.room(rid) || { name: 'Ohne Raum' }).name);
     var what = [];
@@ -2637,6 +2717,7 @@
     }
     if ((t = e.target.closest('[data-lock-now]'))) { W.Lock.lockNow(); return; }
     if ((t = e.target.closest('[data-lock-code]'))) { W.Lock.setup(function (ok) { if (ok) U.toast('Neuer Code gespeichert'); render(); }); return; }
+    if ((t = e.target.closest('[data-unarch]'))) { e.preventDefault(); e.stopPropagation(); unarchiveItem(M.item(t.dataset.unarch)); return; }
     if ((t = e.target.closest('[data-item]'))) {
       e.preventDefault();
       var id = t.dataset.item;
@@ -2741,6 +2822,7 @@
     var tk = words(stripArt(text)); if (!tk.length) return null;
     var best = null, bestScore = 0;
     DB.items.forEach(function (it) {
+      if (it.archived) return;
       var n = U.norm(it.name), sc = tk.reduce(function (a, w) { return a + (n.indexOf(w) >= 0 ? 1 : 0); }, 0);
       if (sc > bestScore || (sc === bestScore && sc > 0 && best && it.name.length < best.name.length)) { best = it; bestScore = sc; }
     });
