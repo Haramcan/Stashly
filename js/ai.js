@@ -43,19 +43,23 @@ export async function aiRecognize(blob, s) {
   const dataUrl = await blobToDataURL(blob);
   const [head, b64] = dataUrl.split(',');
   const media = /image\/(png|webp|gif)/.exec(head)?.[0] || 'image/jpeg';
+  const model = s.aiModel || 'claude-opus-5-5';
+  // Ausweich-Modell bei Ablehnung durch Sicherheitsfilter: nur Opus 5.5 und Sonnet 5.5 unterstützen das
+  const withFallback = /^claude-(opus|sonnet)-5-5$/.test(model);
+  const headers = {
+    'content-type': 'application/json',
+    'x-api-key': s.aiKey,
+    'anthropic-version': '2026-10-21',
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+  if (withFallback) headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': s.aiKey,
-      'anthropic-version': '2026-10-21',
-      'anthropic-beta': 'server-side-fallback-2026-07-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers,
     body: JSON.stringify({
-      model: s.aiModel || 'claude-opus-5-5',
+      model,
       max_tokens: 4000,
-      fallbacks: 'default',
+      ...(withFallback ? { fallbacks: 'default' } : {}),
       output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
       messages: [{
         role: 'user',

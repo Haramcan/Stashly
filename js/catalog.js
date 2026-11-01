@@ -204,6 +204,10 @@ export function search(q, { games = GAME_IDS, limit = 80, setId = null } = {}) {
           score += i === 0 || c._n[i - 1] === ' ' ? 12 : 6;
         }
         if (!ok) continue;
+        const n1 = norm(c.name), n2 = c.nameDe ? norm(c.nameDe) : '';
+        if (n1 === nq || n2 === nq) score += 60;
+        else if (n1.startsWith(nq) || n2.startsWith(nq)) score += 25;
+        if (c.par) score -= 1;
       }
       out.push({ c, score });
     }

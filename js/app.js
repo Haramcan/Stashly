@@ -99,6 +99,7 @@ const routes = [
   [/^#\/wish$/, viewWish, 'more'],
   [/^#\/stats$/, viewStats, 'more'],
   [/^#\/dupes$/, viewDupes, 'more'],
+  [/^#\/bulk$/, viewBulk, 'more'],
   [/^#\/more$/, viewMore, 'more'],
   [/^#\/settings$/, viewSettings, 'more'],
   [/^#\/backup$/, viewBackup, 'more'],
@@ -980,6 +981,93 @@ async function viewWish(_, token) {
 }
 
 /* ======================================================================
+   Schnell-Eingabe per Liste
+   ====================================================================== */
+function parseBulk(text) {
+  const out = [];
+  for (let raw of text.split(/\n|;/)) {
+    let line = raw.trim();
+    if (!line) continue;
+    let qty = 1;
+    const q = /^(\d{1,3})\s*[x×*]\s*|^(\d{1,3})\s+(?=\S*[A-Za-z])/.exec(line);
+    if (q) { qty = parseInt(q[1] || q[2], 10); line = line.slice(q[0].length).trim(); }
+    const qe = /\s*[x×*]\s*(\d{1,3})$/.exec(line);
+    if (qe) { qty = parseInt(qe[1], 10); line = line.slice(0, qe.index).trim(); }
+    let cards = [];
+    const code = line.toUpperCase().replace(/\s+/g, ' ');
+    // Bandai-Nummer (Dragon Ball / One Piece), auch mit Parallel-Kennung "_p1"
+    const b = /^([A-Z]{1,3}\d{0,2}-\d{2,3})(?:[ _]?(P\d|R\d))?/.exec(code.replace(/ /g, ''));
+    if (b) {
+      for (const g of ['dbfw', 'op']) {
+        const list = cat.lookupNo(g, b[1]);
+        if (b[2]) cards.push(...list.filter((c) => c.p.toUpperCase() === b[2]));
+        else cards.push(...list.filter((c) => !c.p));
+      }
+    }
+    // Pokémon: TCGdex-ID "sv03.5-006" oder Setkürzel + Nummer "MEW 6" / "MEW 006/165"
+    if (!cards.length && cat.isLoaded('pokemon')) {
+      const id = cat.getCard('pokemon', line.toLowerCase()) || cat.getCard('pokemon', line);
+      if (id) cards.push(id);
+      const m = /^([A-Z0-9.]{2,8})\s+([A-Z]{0,3}\d{1,3})(?:\s*\/\s*\d+)?$/.exec(code);
+      if (!cards.length && m) {
+        const sets = cat.sets('pokemon').filter((s) => (s.abbr || '').toUpperCase() === m[1] || s.id.toUpperCase() === m[1]);
+        for (const s of sets) cards.push(...cat.setCards('pokemon', s.id).filter((c) => cat.normLocal(c.no) === cat.normLocal(m[2])));
+      }
+    }
+    if (!cards.length && line.length >= 3) cards = cat.search(line, { limit: 6 });
+    out.push({ line: raw.trim(), qty, cards, pick: cards.length === 1 || b ? cards[0] : cards[0] || null, sure: cards.length === 1 });
+  }
+  return out;
+}
+
+async function viewBulk(_, token) {
+  setTitle('Schnell-Eingabe');
+  await cat.loadAll();
+  if (stale(token)) return;
+  view.innerHTML = `
+    <div class="notice">Eine Karte pro Zeile. Beispiele:<br>
+      <code>FB01-139</code> · <code>3x OP01-120</code> · <code>OP05-119_p1</code> (Parallel) · <code>MEW 6</code> oder <code>sv03.5-006</code> (Pokémon) · auch Namen wie <code>Glurak ex</code></div>
+    <div class="field" style="margin-top:12px"><textarea id="bulk" rows="7" placeholder="FB01-139&#10;2x OP01-120&#10;MEW 199" style="width:100%;font-family:ui-monospace,Menlo,monospace"></textarea></div>
+    <div class="two" style="margin-top:10px">
+      <select id="bulkLang" class="btn">${LANGS.map((l) => `<option ${l === S.defaultLang ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn" id="bulkCheck">${icon.search} Prüfen</button>
+    </div>
+    <div id="bulkRes" style="margin-top:14px"></div>`;
+  let rows = [];
+  const draw = () => {
+    const ok = rows.filter((r) => r.pick);
+    $('#bulkRes').innerHTML = rows.length ? `
+      <div class="list">${rows.map((r, i) => `<div class="item" data-i="${i}">
+        ${r.pick ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(r.pick))}" data-fb="${esc(cat.cardImgFallback(r.pick))}" style="width:38px;height:53px;object-fit:cover;border-radius:4px;flex:none" alt="">` : `<span style="width:38px;text-align:center;color:var(--bad)">✕</span>`}
+        <div class="grow"><div class="title">${r.qty}× ${r.pick ? esc(cat.cardName(r.pick)) : esc(r.line)}</div>
+        <div class="sub">${r.pick ? `${esc(cat.cardNo(r.pick))} · ${esc(cat.setCode(cat.getSet(r.pick.game, r.pick.set)))} · ${esc(GAMES[r.pick.game].short)}` : 'nicht gefunden'}${r.cards.length > 1 ? ` · <b style="color:var(--warn)">${r.cards.length} Möglichkeiten – antippen</b>` : ''}</div></div>
+      </div>`).join('')}</div>
+      <button class="btn primary block" id="bulkAdd" style="margin-top:12px" ${ok.length ? '' : 'disabled'}>${icon.plus} ${ok.reduce((a, r) => a + r.qty, 0)} Karten hinzufügen</button>` : '';
+    $$('#bulkRes [data-i]').forEach((it) => (it.onclick = () => {
+      const r = rows[+it.dataset.i];
+      if (r.cards.length < 2) return;
+      sheet('Welche Karte?', (body, close) => {
+        body.innerHTML = `<div class="grid">${r.cards.map((c, j) => tileHTML(c, { idx: j, sub: `${cat.cardNo(c)} · ${cat.setCode(cat.getSet(c.game, c.set))}` })).join('')}</div>`;
+        bindTiles(body, (t) => { r.pick = r.cards[+t.dataset.idx]; close(); draw(); });
+      });
+    }));
+    $('#bulkAdd')?.addEventListener('click', async () => {
+      let n = 0;
+      for (const r of rows) {
+        if (!r.pick) continue;
+        for (let k = 0; k < r.qty; k++) await quickAdd(r.pick, { silent: true, lang: $('#bulkLang').value });
+        n += r.qty;
+      }
+      toast(`${n} Karten hinzugefügt`, { vibrate: 20 });
+      $('#bulk').value = '';
+      rows = [];
+      draw();
+    });
+  };
+  $('#bulkCheck').onclick = () => { rows = parseBulk($('#bulk').value); draw(); };
+}
+
+/* ======================================================================
    Doppelte Karten / Tauschliste
    ====================================================================== */
 async function viewDupes(_, token) {
@@ -1079,6 +1167,7 @@ async function viewMore() {
       ${item('#/stats', icon.chart, 'Statistik & Wert', 'Wert, Top-Karten, Set-Fortschritt')}
       ${item('#/dupes', icon.refresh, 'Doppelte Karten', 'Tauschliste – alles, was du mehrfach hast')}
       ${item('#/search', icon.search, 'Karten suchen', 'Alle Datenbanken durchsuchen')}
+      ${item('#/bulk', icon.list, 'Schnell-Eingabe per Liste', 'Kartennummern eintippen oder einfügen, z. B. „3x FB01-139“')}
       <div class="item" id="addCustom">${icon.plus}<div class="grow"><div class="title">Eigene Karte anlegen</div><div class="sub">Für Karten, die (noch) nicht in der Datenbank sind</div></div>${icon.chev}</div>
     </div>
     <h2>App</h2>
@@ -1273,8 +1362,10 @@ function registerSW() {
     });
     setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
   }).catch((e) => console.warn('SW', e));
+  // Nur nach einem Update neu laden, nicht bei der allerersten Installation
+  const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
 }
 
 init();
