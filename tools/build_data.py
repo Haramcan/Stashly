@@ -144,6 +144,7 @@ def build_dbfw():
 
 # ---------------------------------------------------------------- One Piece
 OP_BASE = "https://en.onepiece-cardgame.com/cardlist/"
+OPTCG_IMG = "https://optcgapi.com/media/static/Card_Images/"
 
 
 def build_op():
@@ -201,21 +202,34 @@ def build_op():
         print(f"  {code:14} {n:4} Karten  {name}")
         time.sleep(0.3)
     sets.sort(key=lambda s: s["order"])
-    # Preise (TCGplayer Marktpreis in USD) von optcgapi.com – optional
-    prices = {}
+    # Bilder und Preise von optcgapi.com: Die offizielle Seite erlaubt kein Einbetten ihrer Bilder
+    # (Cross-Origin-Resource-Policy: same-site), optcgapi.com stellt sie öffentlich bereit.
+    prices, imgs = {}, {}
     for ep in ("allSetCards", "allSTCards", "allPromos"):
         try:
             for x in get_json("https://optcgapi.com/api/" + ep + "/"):
                 k = x.get("card_image_id") or x.get("card_set_id")
-                if k and x.get("market_price"):
+                if not k:
+                    continue
+                if x.get("market_price") and k not in prices:
                     prices[k] = x["market_price"]
+                if x.get("card_image") and k not in imgs:
+                    imgs[k] = x["card_image"].replace(OPTCG_IMG, "")
         except Exception as e:  # noqa: BLE001
-            print("  (Preise", ep, "nicht geladen:", e, ")")
+            print("  (optcgapi", ep, "nicht geladen:", e, ")")
     for c in cards:
         if c["id"] in prices:
             c["usd"] = prices[c["id"]]
-    print(f"  Preise für {sum(1 for c in cards if 'usd' in c)} Karten")
-    return {"sets": sets, "cards": cards, "imgBase": "https://en.onepiece-cardgame.com/images/cardlist/card/"}
+        img = imgs.get(c["id"])
+        if img:
+            c["img"] = img
+        elif imgs.get(c["no"]):
+            c["img"] = imgs[c["no"]]
+            c["imgBase"] = 1  # Bild der Grundversion als Ersatz
+        else:
+            c["img"] = ""
+    print(f"  Preise für {sum(1 for c in cards if 'usd' in c)} Karten, Bilder für {sum(1 for c in cards if c['img'])}")
+    return {"sets": sets, "cards": cards, "imgBase": OPTCG_IMG}
 
 
 # ---------------------------------------------------------------- Pokémon

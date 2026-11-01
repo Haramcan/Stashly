@@ -422,7 +422,12 @@ async function viewSet(game, setId, token) {
     if (setState.sort === 'name') cards.sort((a, b) => cat.cardName(a).localeCompare(cat.cardName(b), 'de'));
     else if (setState.sort === 'rarity') cards.sort((a, b) => (a.r || '').localeCompare(b.r || '') || collator.compare(a.id, b.id));
     else if (setState.sort === 'price') cards.sort((a, b) => (marketPrice(b) || 0) - (marketPrice(a) || 0));
-    else cards.sort((a, b) => collator.compare(a.no, b.no) || (a.p || '').localeCompare(b.p || '') || collator.compare(a.id, b.id));
+    else {
+      // Karten mit der eigenen Set-Nummer zuerst, Sonder-Parallels älterer Karten ans Ende
+      const pre = setId.replace(/-/g, '');
+      const own = (c) => (game === 'pokemon' || c.no.replace(/-.*/, '') === pre || !/\d/.test(pre) ? 0 : 1);
+      cards.sort((a, b) => own(a) - own(b) || collator.compare(a.no, b.no) || (a.p || '').localeCompare(b.p || '') || collator.compare(a.id, b.id));
+    }
   };
   sortCards();
   const hasPar = cards.some((c) => c.par);
@@ -553,6 +558,7 @@ async function cacheImages(cards) {
   let done = 0;
   const t = document.createElement('div');
   t.className = 'toast';
+  t.dataset.keep = '1';
   $('#toastRoot').appendChild(t);
   const upd = () => { t.textContent = `Bilder speichern … ${done}/${urls.length}`; };
   upd();
@@ -716,6 +722,7 @@ async function updatePrices(cards, single = false) {
   let ok = 0;
   const t = document.createElement('div');
   t.className = 'toast';
+  t.dataset.keep = '1';
   if (!single) $('#toastRoot').appendChild(t);
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i];

@@ -141,7 +141,7 @@ export function cardImg(c, size = 'low') {
     if (pkLang === 'de' && c.de) p = p.replace(/^en\//, 'de/');
     return `${d.imgBase}${p}/${size}.webp`;
   }
-  return d.imgBase + c.img;
+  return c.img ? d.imgBase + c.img : '';
 }
 /** Ersatzbild, falls die bevorzugte Sprache fehlt */
 export function cardImgFallback(c, size = 'low') {

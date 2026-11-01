@@ -70,7 +70,7 @@ Im Ordner `python3 -m http.server 8080` starten und `http://localhost:8080` öff
 ## Datenquellen
 
 - Dragon Ball Super Card Game Fusion World: offizielle Kartenliste dbs-cardgame.com/fw
-- One Piece Card Game: offizielle Kartenliste en.onepiece-cardgame.com, Preise von optcgapi.com (TCGplayer)
+- One Piece Card Game: offizielle Kartenliste en.onepiece-cardgame.com, Bilder und Preise (TCGplayer) von optcgapi.com – die offizielle Seite erlaubt das Einbetten ihrer Bilder in andere Seiten nicht
 - Pokémon TCG: TCGdex (tcgdex.dev), Preise von Cardmarket über TCGdex
 
 Kartenbilder und Namen gehören den jeweiligen Rechteinhabern (Bandai, Toei, Shueisha, Bird Studio, The Pokémon Company, Nintendo). Diese App ist ein privates Sammlerwerkzeug und keine offizielle App.

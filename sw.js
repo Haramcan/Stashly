@@ -1,7 +1,7 @@
 /* TCG Sammlung – Service Worker: macht die App offline nutzbar.
    Die Liste zwischen den Markierungen wird von tools/build_sw.py erzeugt. */
 // BEGIN-GENERATED
-const VERSION = 'c122680a7746';
+const VERSION = '6645fb906d13';
 const ASSETS = [
   './',
   './css/app.css',
@@ -29,7 +29,7 @@ const ASSETS = [
 const APP = 'tcg-app-' + VERSION;
 const OCR = 'tcg-ocr-v1';   // Texterkennung (groß, ändert sich selten)
 const IMG = 'tcg-img-v1';   // Kartenbilder aus dem Internet
-const IMG_HOSTS = ['assets.tcgdex.net', 'www.dbs-cardgame.com', 'en.onepiece-cardgame.com'];
+const IMG_HOSTS = ['assets.tcgdex.net', 'www.dbs-cardgame.com', 'optcgapi.com'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(APP).then((c) => c.addAll(ASSETS)));

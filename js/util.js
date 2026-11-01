@@ -59,6 +59,7 @@ export function fmtDate(d) {
 
 export function toast(msg, opts = {}) {
   const root = document.getElementById('toastRoot');
+  if (opts.replace !== false) [...root.children].forEach((c) => { if (!c.dataset.keep) c.remove(); });
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = `<span>${esc(msg)}</span>`;
