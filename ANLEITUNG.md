@@ -23,6 +23,20 @@ Alles läuft offline auf deinem Handy, deine Sammlung bleibt auf deinem Gerät.
 - **Sicherung** als Datei (mit Fotos) und **CSV-Export** für Excel.
 - **Optional KI-Erkennung** mit eigenem Claude-API-Schlüssel: erkennt auch mehrere Karten auf einem Foto (z. B. eine ganze Binder-Seite) und Slabs.
 
+## Nur Dragon Ball (Start-Einstellung)
+
+Die App startet mit **Dragon Ball Fusion World**. One Piece und Pokémon sind schon fertig in der App, aber ausgeblendet. Einblenden: **Mehr › Einstellungen › Angezeigte Spiele**. Ausgeblendete Spiele werden gar nicht erst geladen, dadurch startet die App schneller.
+
+## Neue Sets und Karten per Foto
+
+Erscheint ein neues Set (z. B. FB12), das noch nicht in der Datenbank ist:
+
+1. Karte ganz normal scannen.
+2. Die App meldet **„Neue Karte entdeckt: FB12-001“** → **neu anlegen** tippen.
+3. Name eintragen (Vorschläge aus dem Foto antippen), Seltenheit wählen, fertig.
+
+Das Set wird automatisch angelegt. Bei Dragon Ball sucht die App dabei selbst nach dem offiziellen Kartenbild, sonst wird dein Foto verwendet. Ab dann wird die Karte beim Scannen sofort erkannt. Das geht auch über **Mehr › Neue Karte in die Datenbank**, über die Suche und die Schnell-Eingabe. Selbst angelegte Karten sind in der Sicherung enthalten.
+
 ## 1. App online stellen (einmalig, ca. 5 Minuten)
 
 Damit das Handy die App installieren kann, muss sie einmal unter einer https-Adresse erreichbar sein. Am einfachsten mit Netlify – genau wie bei Stashly, aber als **neue, eigene Seite**:

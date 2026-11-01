@@ -198,6 +198,7 @@ const RULES = [
 ];
 
 let nameIdx = null;
+let nameIdxKey = '';
 function buildNameIndex(games) {
   const idx = new Map();
   for (const g of games) {
@@ -231,10 +232,10 @@ export async function recognize(canvas, { games = cat.GAME_IDS, full = null, onS
   const hasCode = () => res.candidates.some((x) => x.score >= 70);
   // Kartennummern sind winzig: Ecken vergrößert lesen (rechts: Bandai/alte Pokémon, links: neue Pokémon)
   const extra = [
+    [[0.55, 0.82, 0.45, 0.17, 1000, { gray: false }], '6'],
+    [[0.55, 0.82, 0.45, 0.17, 700, {}], '11'],
+    [[0, 0.84, 0.5, 0.15, 1100, { gray: false }], '11'],
     [[0.6, 0.88, 0.4, 0.12, 1100, { gray: false }], '6'],
-    [[0.6, 0.88, 0.4, 0.12, 1100, {}], '6'],
-    [[0, 0.88, 0.5, 0.12, 1100, { gray: false }], '11'],
-    [[0.5, 0.86, 0.5, 0.14, 1100, { gray: false }], '11'],
     [[0, 0.8, 1, 0.2, 1700, {}], '6'],
   ];
   for (const [r, psm] of extra) {
@@ -313,7 +314,8 @@ export function match(text, games = cat.GAME_IDS) {
 
   // Ohne Nummer: über den Namen suchen
   if (found.size < 3 && tokens.length) {
-    if (!nameIdx) nameIdx = buildNameIndex(cat.GAME_IDS);
+    const key = cat.GAME_IDS.filter(cat.isLoaded).join() + ':' + cat.getUserCatalog().cards.length;
+    if (!nameIdx || nameIdxKey !== key) { nameIdx = buildNameIndex(cat.GAME_IDS); nameIdxKey = key; }
     const hits = new Map();
     for (const t of tokens) {
       if (t.length < 4 || STOP.has(t)) continue;
@@ -348,7 +350,31 @@ export function match(text, games = cat.GAME_IDS) {
   }
 
   const candidates = [...found.values()].sort((a, b) => b.score - a.score).slice(0, 24);
-  return { candidates, grading: findGrading(text) };
+  // Nummern, die wie echte Kartennummern aussehen, aber (noch) nicht in der Datenbank sind -> neue Karte/neues Set
+  const unknown = [];
+  if (!candidates.some((x) => x.score >= 90)) {
+    for (const code of findBandaiCodes(text)) {
+      const g = cat.gameFromNo(code);
+      if (!g || !games.includes(g)) continue;
+      if (!/-(\d{3})$/.test(code) && !/^FS\d{2}-\d{2}$/.test(code)) continue;
+      if (cat.lookupNo(g, code).length) continue;
+      if (!unknown.some((u) => u.no === code)) unknown.push({ game: g, no: code });
+    }
+  }
+  return { candidates, grading: findGrading(text), unknown };
 }
 
 export function invalidateNameIndex() { nameIdx = null; }
+
+/** Mögliche Kartennamen aus dem erkannten Text (für das Anlegen neuer Karten) */
+export function nameHints(text) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    const t = line.replace(/[^A-Za-zÄÖÜäöüß .:'-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (t.length < 3 || t.length > 28) continue;
+    if (!/^[A-ZÄÖÜ]/.test(t) || !/[a-zäöü]/.test(t)) continue;
+    if (STOP.has(t.toLowerCase())) continue;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 8);
+}

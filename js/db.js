@@ -160,6 +160,7 @@ const DEFAULTS = {
   setView: 'grid',
   lastBackup: 0,
   keepCount: 1,
+  games: ['dbfw'],
 };
 let settingsCache = null;
 export async function settings() {
@@ -181,6 +182,7 @@ export async function exportAll({ withPhotos = true } = {}) {
     entries: await db.all('entries'),
     wish: await db.all('wish'),
     settings: { ...(await settings()), aiKey: '' },
+    userCatalog: (await db.get('kv', 'userCatalog')) || null,
     photos: {},
   };
   if (withPhotos) {
@@ -204,6 +206,14 @@ export async function importAll(data, { replace = false } = {}) {
   }
   await db.putMany('entries', data.entries || []);
   await db.putMany('wish', data.wish || []);
+  if (data.userCatalog) {
+    const cur = (await db.get('kv', 'userCatalog')) || { sets: [], cards: [] };
+    const ids = new Set(cur.cards.map((c) => c.game + ':' + c.id));
+    const sids = new Set(cur.sets.map((x) => x.game + ':' + x.id));
+    for (const x of data.userCatalog.sets || []) if (!sids.has(x.game + ':' + x.id)) cur.sets.push(x);
+    for (const c of data.userCatalog.cards || []) if (!ids.has(c.game + ':' + c.id)) cur.cards.push(c);
+    await db.put('kv', cur, 'userCatalog');
+  }
   if (data.settings) {
     const cur = await settings();
     const keep = cur.aiKey;

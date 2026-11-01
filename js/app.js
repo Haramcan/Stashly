@@ -38,8 +38,9 @@ async function init() {
       if (ph) ph.hidden = false;
     } else img.style.visibility = 'hidden';
   }, true);
+  cat.setUserCatalog(await store.db.get('kv', 'userCatalog'));
   const extra = await store.db.get('kv', 'pokemonExtra');
-  cat.load('pokemon').then(() => extra && cat.mergePokemonExtra(extra)).catch(() => {});
+  if (extra) cat.load('pokemon').then(() => cat.mergePokemonExtra(extra)).catch(() => {});
   route();
   registerSW();
   store.requestPersist();
@@ -66,6 +67,15 @@ async function refreshOwned() {
 }
 
 const keyOf = (c) => `${c.game}:${c.id}`;
+/** Eingeblendete Spiele (Einstellungen) */
+const activeGames = () => { const a = GAME_IDS.filter((g) => (S.games || GAME_IDS).includes(g)); return a.length ? a : ['dbfw']; };
+/** Lädt die eingeblendeten Spiele und alle, von denen du Karten hast */
+async function loadNeeded() {
+  const used = new Set(activeGames());
+  for (const k of owned.keys()) used.add(k.split(':')[0]);
+  for (const k of wishSet) used.add(k.split(':')[0]);
+  return cat.loadAll(GAME_IDS.filter((g) => used.has(g)));
+}
 const ownedQty = (c) => owned.get(keyOf(c))?.qty || 0;
 
 /** Marktwert pro Stück in EUR (eigener Wert > Online-Preis > TCGplayer-Schätzung) */
@@ -161,7 +171,7 @@ function tileHTML(c, o = {}) {
   if (c.par) flags.push('<span class="badge" style="background:#7c4dff;color:#fff">P</span>');
   return `<div class="tcg ${isMissing ? 'missing' : ''} ${o.selected ? 'selected' : ''}" data-key="${esc(keyOf(c))}" ${o.idx != null ? `data-idx="${o.idx}"` : ''} ${o.entry ? `data-entry="${esc(o.entry)}"` : ''}>
     <div class="pic">
-      ${src ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" ${fb ? `data-fb="${esc(fb)}"` : ''} alt="${esc(name)}">` : c.custom && c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : ''}
+      ${src ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" ${fb ? `data-fb="${esc(fb)}"` : ''} alt="${esc(name)}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : ''}
       <div class="ph" ${src || c.photo ? 'hidden' : ''}>${esc(name)}<br>${esc(c.no || '')}</div>
       ${q ? `<span class="qty">${q}×</span>` : ''}
       ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
@@ -195,7 +205,7 @@ async function viewHome(_, token) {
   setTitle('TCG Sammlung');
   addAction(icon.search, () => (location.hash = '#/search'), 'Suchen');
   const list = await store.entries();
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   const totalQty = list.reduce((a, e) => a + (e.qty || 0), 0);
   const value = list.reduce((a, e) => a + entryValue(e), 0);
@@ -219,7 +229,7 @@ async function viewHome(_, token) {
     ${backupOld ? `<div class="notice warn" style="margin-top:12px">${S.lastBackup ? 'Deine letzte Sicherung ist über 30 Tage alt.' : 'Du hast noch keine Sicherung deiner Sammlung.'} <a href="#/backup" style="font-weight:700;text-decoration:underline">Jetzt sichern</a></div>` : ''}
     <h2>Deine Spiele</h2>
     <div class="games">
-      ${GAME_IDS.map((g) => {
+      ${activeGames().map((g) => {
         const p = per[g];
         const total = cat.sets(g).reduce((a, s) => a + s.cardCount, 0);
         return `<a class="game-tile game-${g}" href="#/catalog/${g}">
@@ -234,7 +244,7 @@ async function viewHome(_, token) {
       <a href="#/help" style="text-decoration:underline;font-weight:700">Alle Tipps</a></div>` : ''}
     ${(() => {
       const prog = [];
-      for (const g of GAME_IDS) {
+      for (const g of GAME_IDS.filter(cat.isLoaded)) {
         const sids = new Set(list.filter((e) => e.game === g).map((e) => cat.getCard(g, e.cardId)?.set).filter(Boolean));
         for (const sid of sids) {
           const cs = cat.setCards(g, sid);
@@ -246,6 +256,7 @@ async function viewHome(_, token) {
       return prog.length ? `<div class="section-head"><h2>Sets in Arbeit</h2><a href="#/stats">Alle</a></div>
         <div class="list">${prog.slice(0, 4).map((x) => `<a class="item" href="#/set/${x.g}/${encodeURIComponent(x.s.id)}" style="--gc:${GAMES[x.g].color}"><span class="set-code">${esc(cat.setCode(x.s))}</span><div class="grow"><div class="title">${esc(cat.setName(x.s))}</div><div class="progress" style="margin-top:6px"><i style="width:${pct(x.have, x.total)}%"></i></div></div><span class="pct">${x.have}/${x.total}</span></a>`).join('')}</div>` : '';
     })()}
+    ${activeGames().length < GAME_IDS.length ? `<p class="small muted" style="margin:8px 2px 0">Weitere Spiele (${GAME_IDS.filter((g) => !activeGames().includes(g)).map((g) => GAMES[g].short).join(', ')}) kannst du unter <a href="#/settings" style="color:var(--accent);font-weight:700">Einstellungen</a> einblenden.</p>` : ''}
     <h2>Schnellzugriff</h2>
     <div class="quick">
       <a href="#/scan">${icon.camera}Scannen</a>
@@ -276,14 +287,14 @@ async function viewCollection(_, token) {
     viewCollection(null, routeToken);
   }, 'Ansicht');
   addAction(icon.download, exportCSV, 'Als CSV exportieren');
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   const list = await store.entries();
   const gamesInUse = [...new Set(list.map((e) => e.game))];
   view.innerHTML = `
     <div class="bar"><div class="search">${icon.search}<input type="search" id="cq" placeholder="In deiner Sammlung suchen …" value="${esc(colState.q)}"></div></div>
     <div class="chips" id="cgames">
-      ${[['all', 'Alle'], ...GAME_IDS.map((g) => [g, GAMES[g].short]), ...(gamesInUse.includes('custom') ? [['custom', 'Eigene']] : [])].map(([k, l]) => `<button class="chip ${colState.game === k ? 'on' : ''}" data-g="${k}">${l}</button>`).join('')}
+      ${[['all', 'Alle'], ...GAME_IDS.filter((g) => activeGames().includes(g) || gamesInUse.includes(g)).map((g) => [g, GAMES[g].short]), ...(gamesInUse.includes('custom') ? [['custom', 'Eigene']] : [])].map(([k, l]) => `<button class="chip ${colState.game === k ? 'on' : ''}" data-g="${k}">${l}</button>`).join('')}
       <button class="chip ${colState.graded ? 'on' : ''}" data-graded>Gegradet</button>
     </div>
     <div class="toolbar">
@@ -373,7 +384,7 @@ async function openEntry(id) {
    ====================================================================== */
 const catState = { game: null, q: '', serie: 'all' };
 async function viewCatalog(game, token) {
-  game = game && GAMES[game] ? game : catState.game || 'dbfw';
+  game = game && GAMES[game] ? game : catState.game && activeGames().includes(catState.game) ? catState.game : activeGames()[0];
   catState.game = game;
   setTitle('Sets');
   addAction(icon.search, () => (location.hash = '#/search'), 'Karten suchen');
@@ -387,7 +398,7 @@ async function viewCatalog(game, token) {
     return have;
   };
   view.innerHTML = `
-    <div class="chips" id="ggames">${GAME_IDS.map((g) => `<button class="chip ${g === game ? 'on' : ''}" data-g="${g}">${GAMES[g].short}</button>`).join('')}</div>
+    <div class="chips" id="ggames" ${activeGames().length < 2 && activeGames().includes(game) ? 'hidden' : ''}>${[...new Set([...activeGames(), game])].map((g) => `<button class="chip ${g === game ? 'on' : ''}" data-g="${g}">${GAMES[g].short}</button>`).join('')}</div>
     <div class="bar" style="margin-top:6px"><div class="search">${icon.search}<input type="search" id="sq" placeholder="Set suchen (Name oder Code) …" value="${esc(catState.q)}"></div></div>
     <div class="toolbar"><label class="row small muted"><span class="switch"><input type="checkbox" id="onlyMine"><span></span></span> Nur Sets mit meinen Karten</label></div>
     <div id="slist"></div>`;
@@ -503,6 +514,7 @@ async function viewSet(game, setId, token) {
     } else {
       el.innerHTML = `<div class="grid">${list.map((c) => tileHTML(c, { markMissing: true, sub: `${cat.cardNo(c)}${c.r ? ' · ' + c.r : ''}` })).join('')}</div>`;
     }
+    hydratePhotos(el);
   };
   draw();
   // Antippen / Gedrückt halten
@@ -631,7 +643,7 @@ async function viewCard(game, id, token) {
     <div class="detail-top">
       <div>
         <div class="detail-img" id="dimg">
-          <div class="pic"><img referrerpolicy="no-referrer" src="${esc(cat.cardImg(c, 'high'))}" data-fb="${esc(cat.cardImgFallback(c, 'high'))}" alt="${esc(cat.cardName(c))}"></div>
+          <div class="pic">${cat.cardImg(c, 'high') ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(c, 'high'))}" data-fb="${esc(cat.cardImgFallback(c, 'high'))}" alt="${esc(cat.cardName(c))}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : `<div class="ph" style="position:absolute;inset:0;display:grid;place-items:center">${esc(c.no)}</div>`}</div>
           <div class="holo"></div>
         </div>
         <div class="row" style="justify-content:space-between;margin-top:10px">
@@ -644,6 +656,7 @@ async function viewCard(game, id, token) {
         <div>
           <span class="badge game-${game}">${esc(GAMES[game].short)}</span>
           ${c.par ? '<span class="badge" style="background:#7c4dff;color:#fff">Parallel</span>' : ''}
+          ${c.user ? `<span class="badge">Selbst angelegt</span> <button class="btn sm ghost" data-deluser style="min-height:26px;padding:2px 8px">${icon.trash}</button>` : ''}
           <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:6px">${esc(cat.cardName(c))}</div>
           ${c.nameDe && S.pkLang === 'de' && c.nameDe !== c.name ? `<div class="muted small">${esc(c.name)}</div>` : ''}
           ${c.nameDe && S.pkLang !== 'de' ? `<div class="muted small">${esc(c.nameDe)}</div>` : ''}
@@ -691,7 +704,8 @@ async function viewCard(game, id, token) {
     ${sameName.length ? `<h2>Gleicher Name, andere Sets</h2><div class="grid small" id="samename">${sameName.map((x) => tileHTML(x, { markMissing: true })).join('')}</div>` : ''}
   `;
   const img = $('#dimg');
-  img.querySelector('.pic').onclick = () => zoomImage(cat.cardImg(c, 'high'), cat.cardImgFallback(c, 'high'));
+  hydratePhotos(img);
+  img.querySelector('.pic').onclick = () => { const i = img.querySelector('img'); if (i?.src) zoomImage(i.src); };
   img.addEventListener('pointermove', (e) => {
     const r = img.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -708,6 +722,14 @@ async function viewCard(game, id, token) {
     return e;
   };
   $('[data-add]').onclick = () => openEntrySheet(c, null);
+  $('[data-deluser]')?.addEventListener('click', async () => {
+    if (owned.has(key)) return toast('Erst die Exemplare dieser Karte aus der Sammlung löschen.');
+    if (!(await confirmDialog('Karte entfernen?', 'Die selbst angelegte Karte wird aus der Datenbank entfernt.', 'Entfernen', true))) return;
+    cat.removeUserCard(game, c.id);
+    await store.db.put('kv', cat.getUserCatalog(), 'userCatalog');
+    toast('Entfernt');
+    location.replace(`#/set/${game}/${encodeURIComponent(c.set)}`);
+  });
   $('[data-price]')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     await updatePrices([c], true);
@@ -932,6 +954,110 @@ async function openEntrySheet(c, e, prefill = {}) {
   });
 }
 
+/** Neue Karte (z. B. aus einem neuen Set) in die Datenbank aufnehmen */
+function openNewCard(pre = {}) {
+  const games = GAME_IDS.filter((g) => g !== 'pokemon');
+  let game = pre.game && games.includes(pre.game) ? pre.game : cat.gameFromNo(pre.no || '') || (activeGames().includes('dbfw') ? 'dbfw' : games[0]);
+  let img = '';
+  let ownPhoto = pre.photoBlob || null;
+  sheet('Neue Karte anlegen', (body, close) => {
+    body.innerHTML = `<form class="form" autocomplete="off">
+      <div class="notice small">Für Karten, die noch nicht in der Datenbank sind – z. B. aus einem gerade erschienenen Set. Das Set wird automatisch angelegt. Neue Pokémon-Sets holst du unter <a href="#/backup" style="text-decoration:underline">Sicherung › Neue Pokémon-Sets online suchen</a>.</div>
+      <div class="field"><span class="lbl">Spiel</span><div class="seg" data-seg="game">${games.map((g) => `<button type="button" class="${g === game ? 'on' : ''}" data-v="${g}">${GAMES[g].short}</button>`).join('')}</div></div>
+      <div class="two">
+        <div class="field"><label>Kartennummer</label><input name="no" required value="${esc((pre.no || '').toUpperCase())}" placeholder="z. B. FB12-001" autocapitalize="characters"></div>
+        <div class="field"><label>Seltenheit</label><select name="r">${['', 'C', 'UC', 'R', 'SR', 'SCR', 'L', 'SEC', 'SP', 'PR', 'TR'].map((r) => `<option>${r}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Name</label><input name="name" value="${esc(pre.name || '')}" placeholder="z. B. Son Goku">
+        ${pre.hints?.length ? `<div class="chips" style="margin-top:6px">${pre.hints.map((h) => `<button type="button" class="chip" data-hint="${esc(h)}">${esc(h)}</button>`).join('')}</div>` : ''}</div>
+      <label class="row small" style="font-weight:650"><span class="switch"><input type="checkbox" name="par"><span></span></span> Parallel- / Sonderversion</label>
+      <div class="panel small" id="setInfo"></div>
+      <div class="field" id="setNameBox" hidden><label>Name des neuen Sets (optional)</label><input name="setName" placeholder="z. B. Booster Pack – …"></div>
+      <div class="row" style="align-items:flex-start;gap:12px">
+        <div style="width:96px;flex:none"><div class="pic" style="aspect-ratio:63/88;border-radius:8px;overflow:hidden;background:var(--card2)"><img id="nimg" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:none"></div></div>
+        <div class="stack small" style="flex:1"><div id="imgState" class="muted">Bild wird gesucht …</div>
+          <button type="button" class="btn sm" data-photo>${icon.camera} Eigenes Foto</button></div>
+      </div>
+      <button type="submit" class="btn primary block">${icon.check} ${pre.noAdd ? 'Anlegen' : 'Anlegen und +1 in die Sammlung'}</button>
+    </form>`;
+    const f = body.querySelector('form');
+    const nimg = body.querySelector('#nimg');
+    const state = body.querySelector('#imgState');
+    const showOwn = () => {
+      if (ownPhoto) { nimg.src = URL.createObjectURL(ownPhoto); nimg.style.display = ''; state.textContent = 'Dein Foto wird als Bild verwendet.'; }
+      else { nimg.style.display = 'none'; state.textContent = 'Kein Bild – du kannst ein Foto machen.'; }
+    };
+    let probeToken = 0;
+    const probe = () => {
+      const no = cat.normNo(f.no.value);
+      const sid = cat.setIdFromNo(game, no);
+      const s = sid ? cat.getSet(game, sid) : null;
+      const exists = no && cat.lookupNo(game, no).length;
+      body.querySelector('#setInfo').innerHTML = !no ? 'Nummer eingeben, z. B. FB12-001.'
+        : exists ? `<b style="color:var(--warn)">${esc(no)} gibt es schon.</b> Sie wird als eigene Version angelegt – oder <a href="#/search" style="text-decoration:underline">suche</a> die vorhandene Karte.`
+        : s ? `Kommt in das Set <b>${esc(cat.setCode(s))} – ${esc(cat.setName(s))}</b>.`
+        : sid ? `<b>Neues Set ${esc(sid)}</b> wird angelegt.` : 'Unbekanntes Nummernformat.';
+      body.querySelector('#setNameBox').hidden = !(sid && !s);
+      img = '';
+      // Offizielles Bild suchen (Dragon Ball: Bilder der offiziellen Kartenliste dürfen eingebunden werden)
+      if (game === 'dbfw' && /^[A-Z]+\d*-\d+$/.test(no)) {
+        const t = ++probeToken;
+        const tries = f.par.checked ? [`${no}_p1.webp`, `${no}_f_p1.webp`] : [`${no}.webp`, `${no}_f.webp`];
+        state.textContent = 'Suche offizielles Bild …';
+        const next = (i) => {
+          if (t !== probeToken) return;
+          if (i >= tries.length) return showOwn();
+          const im = new Image();
+          im.referrerPolicy = 'no-referrer';
+          im.onload = () => { if (t !== probeToken) return; img = tries[i]; nimg.src = im.src; nimg.style.display = ''; state.innerHTML = '<b style="color:var(--ok)">Offizielles Kartenbild gefunden ✓</b>'; };
+          im.onerror = () => next(i + 1);
+          im.src = 'https://www.dbs-cardgame.com/fw/images/cards/card/en/' + tries[i];
+        };
+        if (navigator.onLine) next(0); else showOwn();
+      } else showOwn();
+    };
+    probe();
+    f.no.oninput = debounce(probe, 400);
+    f.par.onchange = probe;
+    body.querySelectorAll('[data-seg="game"] button').forEach((b) => (b.onclick = () => {
+      game = b.dataset.v;
+      body.querySelectorAll('[data-seg="game"] button').forEach((x) => x.classList.toggle('on', x === b));
+      probe();
+    }));
+    body.querySelectorAll('[data-hint]').forEach((b) => (b.onclick = () => { f.name.value = b.dataset.hint; }));
+    body.querySelector('[data-photo]').onclick = async () => {
+      const file = await pickFile('image/*', { capture: 'environment' });
+      if (!file) return;
+      ownPhoto = await compressImage(file, 1200);
+      probeToken++;
+      img = '';
+      showOwn();
+    };
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const no = cat.normNo(f.no.value);
+      if (!/^[A-Z]+\d*-\d+$/.test(no)) return toast('Bitte eine Kartennummer wie FB12-001 eingeben.');
+      await cat.load(game);
+      const existing = cat.lookupNo(game, no);
+      if (existing.length && !f.par.checked) {
+        close();
+        toast(`${no} gibt es schon in der Datenbank`);
+        openCardKey(keyOf(existing.find((c) => !c.p) || existing[0]));
+        return;
+      }
+      let photo = '';
+      if (!img && ownPhoto) photo = await store.savePhoto(await compressImage(ownPhoto, 1200));
+      const c = cat.addUserCard({ game, no, name: f.name.value.trim(), rarity: f.r.value, parallel: f.par.checked, img, photo, setName: f.setName.value.trim() });
+      await store.db.put('kv', cat.getUserCatalog(), 'userCatalog');
+      close();
+      if (!pre.noAdd) await quickAdd(c, { silent: true });
+      toast(`${c.no} ${c.name} angelegt${pre.noAdd ? '' : ' und hinzugefügt'}`, { vibrate: 20 });
+      pre.onSaved?.(c);
+      if (!document.querySelector('.scanner')) route();
+    };
+  });
+}
+
 function openCustom(prefill = {}) {
   openEntrySheet(null, null, { ...prefill, custom: { name: '', set: '', no: '' } });
 }
@@ -950,7 +1076,10 @@ async function viewScan() {
       quickAdd: (c, extra) => quickAdd(c, extra),
       openAdd: (c, prefill) => openEntrySheet(c, null, prefill),
       openCustom: (prefill) => openCustom(prefill),
+      openNewCard: (prefill) => openNewCard(prefill),
+      games: activeGames(),
       tileHTML: (c, o) => tileHTML(c, { ...o, caption: true }),
+      hydrate: (el) => hydratePhotos(el),
       ownedQty,
       onClose: () => { if (location.hash === '#/scan') location.replace(lastHash || '#/home'); },
     });
@@ -965,19 +1094,21 @@ async function viewScan() {
 async function viewSearch(_, token) {
   setTitle('Karten suchen');
   view.innerHTML = `<div class="bar"><div class="search">${icon.search}<input type="search" id="gq" placeholder="Name oder Nummer (z. B. Glurak, OP01-120, FB01-139)" autofocus></div></div>
-    <div class="chips" id="sg">${[['all', 'Alle'], ...GAME_IDS.map((g) => [g, GAMES[g].short])].map(([k, l]) => `<button class="chip ${k === 'all' ? 'on' : ''}" data-g="${k}">${l}</button>`).join('')}</div>
-    <div id="sr"><div class="empty">${icon.search}<b>Durchsuche alle Datenbanken</b>Über 30.000 Karten aus Dragon Ball Fusion World, One Piece und Pokémon.</div></div>`;
-  await cat.loadAll();
+    <div class="chips" id="sg" ${activeGames().length < 2 ? 'hidden' : ''}>${[['all', 'Alle'], ...activeGames().map((g) => [g, GAMES[g].short])].map(([k, l]) => `<button class="chip ${k === 'all' ? 'on' : ''}" data-g="${k}">${l}</button>`).join('')}</div>
+    <div id="sr"><div class="empty">${icon.search}<b>Durchsuche alle Datenbanken</b>Name oder Kartennummer eingeben.</div></div>`;
+  await loadNeeded();
   if (stale(token)) return;
   let g = 'all';
   const run = () => {
     const q = $('#gq').value;
     if (!q.trim()) return;
-    const res = cat.search(q, { games: g === 'all' ? GAME_IDS : [g], limit: 150 });
+    const res = cat.search(q, { games: g === 'all' ? activeGames() : [g], limit: 150 });
     $('#sr').innerHTML = res.length ? `<p class="muted small">${res.length}${res.length === 150 ? '+' : ''} Treffer</p><div class="grid">${res.map((c) => {
       const s = cat.getSet(c.game, c.set);
       return tileHTML(c, { markMissing: false, sub: `${cat.cardNo(c)} · ${cat.setCode(s)}` });
-    }).join('')}</div>` : '<div class="empty"><b>Keine Treffer</b></div>';
+    }).join('')}</div>` : `<div class="empty"><b>Keine Treffer</b>${cat.gameFromNo(q.trim()) ? `<br><br><button class="btn primary" id="srNew">${icon.plus} ${esc(q.trim().toUpperCase())} als neue Karte anlegen</button>` : ''}</div>`;
+    $('#srNew')?.addEventListener('click', () => openNewCard({ no: q.trim() }));
+    hydratePhotos($('#sr'));
   };
   $('#gq').oninput = debounce(run, 220);
   $$('#sg [data-g]').forEach((b) => (b.onclick = () => { g = b.dataset.g; $$('#sg [data-g]').forEach((x) => x.classList.toggle('on', x === b)); run(); }));
@@ -990,7 +1121,7 @@ async function viewSearch(_, token) {
    ====================================================================== */
 async function viewWish(_, token) {
   setTitle('Wunschliste');
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   const list = (await store.wishlist()).slice().sort((a, b) => (b.added || 0) - (a.added || 0));
   const cards = list.map((w) => cat.getCard(w.game, w.cardId)).filter(Boolean);
@@ -1007,7 +1138,7 @@ async function viewWish(_, token) {
     <div class="grid" id="wl">${cards.map((c) => tileHTML(c, { sub: `${cat.cardNo(c)}${marketPrice(c) ? ' · ' + money(marketPrice(c)) : ''}`, showWish: false })).join('')}</div>`
     : `<div class="empty">${icon.heart}<b>Wunschliste ist leer</b>Öffne eine Karte und tippe oben auf das Herz – oder setze in einem Set alle fehlenden Karten auf einmal drauf.</div>`;
   const wl = $('#wl');
-  if (wl) bindTiles(wl, (t) => openCardKey(t.dataset.key));
+  if (wl) { bindTiles(wl, (t) => openCardKey(t.dataset.key)); hydratePhotos(wl); }
 }
 
 /* ======================================================================
@@ -1045,6 +1176,8 @@ function parseBulk(text) {
       }
     }
     if (!cards.length && line.length >= 3) cards = cat.search(line, { limit: 6 });
+    const hg = cat.gameFromNo(line.toUpperCase().replace(/\s+/g, ''));
+    if (!cards.length && hg && !activeGames().includes(hg)) { out.push({ line: raw.trim(), qty, cards: [], pick: null, hidden: hg }); continue; }
     out.push({ line: raw.trim(), qty, cards, pick: cards.length === 1 || b ? cards[0] : cards[0] || null, sure: cards.length === 1 });
   }
   return out;
@@ -1052,7 +1185,7 @@ function parseBulk(text) {
 
 async function viewBulk(_, token) {
   setTitle('Schnell-Eingabe');
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   view.innerHTML = `
     <div class="notice">Eine Karte pro Zeile. Beispiele:<br>
@@ -1069,12 +1202,16 @@ async function viewBulk(_, token) {
     $('#bulkRes').innerHTML = rows.length ? `
       <div class="list">${rows.map((r, i) => `<div class="item" data-i="${i}">
         ${r.pick ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(r.pick))}" data-fb="${esc(cat.cardImgFallback(r.pick))}" style="width:38px;height:53px;object-fit:cover;border-radius:4px;flex:none" alt="">` : `<span style="width:38px;text-align:center;color:var(--bad)">✕</span>`}
-        <div class="grow"><div class="title">${r.qty}× ${r.pick ? esc(cat.cardName(r.pick)) : esc(r.line)}</div>
-        <div class="sub">${r.pick ? `${esc(cat.cardNo(r.pick))} · ${esc(cat.setCode(cat.getSet(r.pick.game, r.pick.set)))} · ${esc(GAMES[r.pick.game].short)}` : 'nicht gefunden'}${r.cards.length > 1 ? ` · <b style="color:var(--warn)">${r.cards.length} Möglichkeiten – antippen</b>` : ''}</div></div>
+        <div class="grow"><div class="title">${r.pick ? `${r.qty}× ${esc(cat.cardName(r.pick))}` : esc(r.line)}</div>
+        <div class="sub">${r.pick ? `${esc(cat.cardNo(r.pick))} · ${esc(cat.setCode(cat.getSet(r.pick.game, r.pick.set)))} · ${esc(GAMES[r.pick.game].short)}` : (r.hidden ? `${GAMES[r.hidden].short} ist ausgeblendet – unter <a href="#/settings" style="text-decoration:underline">Einstellungen</a> einblenden` : cat.gameFromNo(r.line.replace(/^\d+\s*[x×*]\s*/i, '').trim()) ? '<b style="color:var(--accent)">nicht in der Datenbank – antippen zum Anlegen</b>' : 'nicht gefunden')}${r.cards.length > 1 ? ` · <b style="color:var(--warn)">${r.cards.length} Möglichkeiten – antippen</b>` : ''}</div></div>
       </div>`).join('')}</div>
       <button class="btn primary block" id="bulkAdd" style="margin-top:12px" ${ok.length ? '' : 'disabled'}>${icon.plus} ${ok.reduce((a, r) => a + r.qty, 0)} Karten hinzufügen</button>` : '';
     $$('#bulkRes [data-i]').forEach((it) => (it.onclick = () => {
       const r = rows[+it.dataset.i];
+      if (!r.pick && !r.hidden && cat.gameFromNo(r.line.replace(/^\d+\s*[x×*]\s*/i, '').trim())) {
+        openNewCard({ no: r.line.replace(/^\d+\s*[x×*]\s*/i, '').replace(/\s*[x×*]\s*\d+$/i, '').trim(), noAdd: true, onSaved: (c) => { r.pick = c; r.cards = [c]; draw(); } });
+        return;
+      }
       if (r.cards.length < 2) return;
       sheet('Welche Karte?', (body, close) => {
         body.innerHTML = `<div class="grid">${r.cards.map((c, j) => tileHTML(c, { idx: j, sub: `${cat.cardNo(c)} · ${cat.setCode(cat.getSet(c.game, c.set))}` })).join('')}</div>`;
@@ -1102,7 +1239,7 @@ async function viewBulk(_, token) {
    ====================================================================== */
 async function viewDupes(_, token) {
   setTitle('Doppelte Karten');
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   const keep = Math.max(1, parseInt(S.keepCount || 1, 10));
   const rows = [];
@@ -1138,7 +1275,7 @@ async function viewDupes(_, token) {
    ====================================================================== */
 async function viewStats(_, token) {
   setTitle('Statistik');
-  await cat.loadAll();
+  await loadNeeded();
   if (stale(token)) return;
   const list = await store.entries();
   if (!list.length) { view.innerHTML = `<div class="empty">${icon.chart}<b>Noch keine Daten</b>Sobald du Karten erfasst, siehst du hier Werte und Fortschritt.</div>`; return; }
@@ -1198,7 +1335,8 @@ async function viewMore() {
       ${item('#/dupes', icon.refresh, 'Doppelte Karten', 'Tauschliste – alles, was du mehrfach hast')}
       ${item('#/search', icon.search, 'Karten suchen', 'Alle Datenbanken durchsuchen')}
       ${item('#/bulk', icon.list, 'Schnell-Eingabe per Liste', 'Kartennummern eintippen oder einfügen, z. B. „3x FB01-139“')}
-      <div class="item" id="addCustom">${icon.plus}<div class="grow"><div class="title">Eigene Karte anlegen</div><div class="sub">Für Karten, die (noch) nicht in der Datenbank sind</div></div>${icon.chev}</div>
+      <div class="item" id="addNew">${icon.plus}<div class="grow"><div class="title">Neue Karte in die Datenbank</div><div class="sub">Für neue Sets und Karten, die noch fehlen</div></div>${icon.chev}</div>
+      <div class="item" id="addCustom">${icon.plus}<div class="grow"><div class="title">Karte aus anderem Spiel</div><div class="sub">Eigener Eintrag mit Foto, z. B. für andere Sammelkarten</div></div>${icon.chev}</div>
     </div>
     <h2>App</h2>
     <div class="list">
@@ -1208,12 +1346,17 @@ async function viewMore() {
     </div>
     <p class="faint tiny" style="text-align:center;margin-top:24px">TCG Sammlung · Daten: offizielle Kartenlisten von Bandai, TCGdex (Pokémon).<br>Keine offizielle App von Bandai, The Pokémon Company oder Toei.</p>`;
   $('#addCustom').onclick = () => openCustom();
+  $('#addNew').onclick = () => openNewCard({});
 }
 
 async function viewSettings() {
   setTitle('Einstellungen');
   const seg = (k, opts) => `<div class="seg" data-set="${k}">${opts.map(([v, l]) => `<button class="${String(S[k]) === String(v) ? 'on' : ''}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div>`;
   view.innerHTML = `<div class="form">
+    <div class="field"><span class="lbl">Angezeigte Spiele</span>
+      <div class="list">${GAME_IDS.map((g) => `<label class="item" style="cursor:pointer"><span class="badge game-${g}">${GAMES[g].short}</span><div class="grow small muted">${{ dbfw: 'FB01–FB11, Manga & Story Booster, Starter Decks, Promos', op: 'OP-01–OP-17, EB, PRB, Starter Decks, Promos', pokemon: '205 Sets von Base bis Mega-Entwicklung' }[g]}</div>
+        <span class="switch"><input type="checkbox" data-game="${g}" ${activeGames().includes(g) ? 'checked' : ''}><span></span></span></label>`).join('')}</div>
+      <div class="faint tiny" style="margin:4px 2px">Ausgeblendete Spiele werden nicht geladen – die App startet dann schneller.</div></div>
     <div class="field"><span class="lbl">Darstellung</span>${seg('theme', [['dark', 'Dunkel'], ['light', 'Hell'], ['auto', 'System']])}</div>
     <div class="field"><span class="lbl">Pokémon-Namen & Bilder</span>${seg('pkLang', [['de', 'Deutsch'], ['en', 'Englisch']])}
       <div class="faint tiny" style="margin:4px 2px">Deutsche Bilder gibt es nicht für jede Karte – dann wird das englische gezeigt.</div></div>
@@ -1236,6 +1379,11 @@ async function viewSettings() {
     if (sg.dataset.set === 'pkLang') cat.setPkLang(b.dataset.v);
   })));
   $$('[data-sel]').forEach((s) => (s.onchange = () => store.setSetting(s.dataset.sel, s.value)));
+  $$('[data-game]').forEach((x) => (x.onchange = async () => {
+    const on = $$('[data-game]').filter((y) => y.checked).map((y) => y.dataset.game);
+    if (!on.length) { x.checked = true; return toast('Mindestens ein Spiel muss eingeblendet sein.'); }
+    await store.setSetting('games', on);
+  }));
   $$('[data-num]').forEach((s) => (s.onchange = () => store.setSetting(s.dataset.num, parseFloat(s.value) || 0)));
   $$('[data-text]').forEach((s) => (s.onchange = () => store.setSetting(s.dataset.text, s.value.trim())));
   $$('[data-bool]').forEach((s) => (s.onchange = () => store.setSetting(s.dataset.bool, s.checked)));
@@ -1280,7 +1428,7 @@ async function viewBackup() {
     <p class="faint tiny">Dragon Ball und One Piece werden mit App-Updates aktualisiert (Skript <code>tools/build_data.py</code>).</p>
     <h2>Gefahrenzone</h2>
     <button class="btn danger" data-a="wipe">${icon.trash} Alle meine Daten löschen</button>`;
-  await cat.loadAll();
+  await loadNeeded();
   $('#dbinfo').innerHTML = cat.dataInfo().map((d) => `<div class="item"><span class="badge game-${d.game}">${GAMES[d.game].short}</span><div class="grow"><div class="title">${num(d.sets)} Sets · ${num(d.cards)} Karten</div><div class="sub">Stand ${fmtDate(d.updated)}</div></div></div>`).join('');
   $$('[data-a]').forEach((b) => (b.onclick = async () => {
     const a = b.dataset.a;
@@ -1345,7 +1493,7 @@ async function viewBackup() {
 }
 
 async function exportCSV() {
-  await cat.loadAll();
+  await loadNeeded();
   const list = await store.entries();
   const cols = ['Spiel', 'Set', 'Set-Name', 'Nummer', 'Name', 'Seltenheit', 'Anzahl', 'Version', 'Zustand', 'Sprache', 'Gegradet', 'Grading', 'Note', 'Zertifikat', 'Kaufpreis', 'Kaufdatum', 'Wert/Stk', 'Wert gesamt', 'Lagerort', 'Notizen', 'Hinzugefügt'];
   const q = (v) => {
