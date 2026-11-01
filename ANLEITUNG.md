@@ -20,6 +20,7 @@ Alles läuft offline auf deinem Handy, deine Sammlung bleibt auf deinem Gerät.
 - **Gegradete Karten**: PSA, BGS, CGC, TAG, SGC, ACE … mit Note, Zertifikatsnummer und eigenem Foto vom Slab. Der Scanner erkennt Grading-Etiketten oft automatisch.
 - **Pro Exemplar**: Anzahl, Version (Holo, Reverse, Foil …), Zustand (MT bis PO), Sprache, Kaufpreis, Kaufdatum, Wert, Lagerort (Binder, Box …), Notizen, eigene Fotos.
 - **Preise**: One Piece mit TCGplayer-Marktpreisen, Pokémon-Preise von Cardmarket per Knopfdruck (online), dazu Links zu Cardmarket und „eBay verkauft“ für jede Karte.
+- **Binder**: Lieblingskarten in eigene Ledermappen legen (9er-Seiten zum Blättern, Glanz-Effekt), dazu automatisch „Teuerste Karten“ und „Gegradet“ – gegradete Karten erscheinen als Slab mit Etikett und Note.
 - **Wunschliste**, **Tauschliste** (doppelte Karten), **Statistik** (Gesamtwert, Gewinn/Verlust, wertvollste Karten, Set-Fortschritt), **Suche** über alle 30.000 Karten.
 - **Sicherung** als Datei (mit Fotos) und **CSV-Export** für Excel.
 - **Optional KI-Erkennung** mit eigenem Claude-API-Schlüssel: erkennt auch mehrere Karten auf einem Foto (z. B. eine ganze Binder-Seite) und Slabs.

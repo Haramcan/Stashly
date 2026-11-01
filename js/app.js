@@ -3,6 +3,7 @@ import { $, $$, esc, uid, debounce, toast, sheet, confirmDialog, zoomImage, comp
 import * as store from './db.js';
 import * as cat from './catalog.js';
 import { GAMES, GAME_IDS, CONDITIONS, LANGS, GRADERS, gameInfo } from './catalog.js';
+import { initBinder, viewBinders, viewBinder, addToBinder } from './binder.js';
 
 const view = $('#view');
 const titleEl = $('#title');
@@ -57,6 +58,12 @@ window.addEventListener('unhandledrejection', (e) => toast('Fehler: ' + (e.reaso
 
 async function init() {
   S = await store.settings();
+  initBinder({
+    cardOf, marketPrice, entryValue, priceText, tileHTML, hydratePhotos, setTitle, addAction, go, route, openCardKey,
+    cardName: (c) => cat.cardName(c) || c?.name || '',
+    stale: (t) => stale(t),
+    get view() { return view; },
+  });
   if (!store.persistent) setTimeout(() => toast('Hinweis: Dieser Browser erlaubt hier kein Speichern – Einträge gehen beim Schließen verloren.', { ms: 7000 }), 800);
   applyTheme();
   cat.setPkLang(S.pkLang);
@@ -161,6 +168,8 @@ const routes = [
   [/^#\/card\/(\w+)\/(.+)$/, viewCard, null],
   [/^#\/scan$/, viewScan, 'scan'],
   [/^#\/wish$/, viewWish, 'more'],
+  [/^#\/binders$/, (t) => viewBinders(t), 'more'],
+  [/^#\/binder\/([\w-]+)$/, (id, t) => viewBinder(id, t), 'more'],
   [/^#\/stats$/, viewStats, 'more'],
   [/^#\/dupes$/, viewDupes, 'more'],
   [/^#\/bulk$/, viewBulk, 'more'],
@@ -181,6 +190,7 @@ async function route() {
     lastHash = h;
     // Zurück-Taste (Android) schließt offene Fenster und den Scanner
     $$('.sheet-backdrop').forEach((b) => b.click());
+    $$('.showcase, .zoom').forEach((x) => x.remove());
     $('.scanner [data-close]')?.click();
   }
   for (const [re, fn, tab] of routes) {
@@ -325,7 +335,7 @@ async function viewHome(_, token) {
     <h2>Schnellzugriff</h2>
     <div class="quick">
       <a href="#/scan">${icon.camera}Scannen</a>
-      <a href="#/search">${icon.search}Suchen</a>
+      <a href="#/binders">${icon.binder}Binder</a>
       <a href="#/wish">${icon.heart}Wunschliste</a>
       <a href="#/stats">${icon.chart}Statistik</a>
     </div>
@@ -813,6 +823,7 @@ async function viewCard(game, id, token) {
       <button class="btn" data-quick>${icon.plus} +1 Schnell</button>
       <button class="btn primary" data-add>${icon.edit} Hinzufügen…</button>
     </div>
+    <button class="btn block" data-binder style="margin-top:10px">${icon.binder} In einen Binder legen</button>
     ${versions.length ? `<h2>Andere Versionen</h2><div class="grid small" id="versions">${versions.map((x) => tileHTML(x, { markMissing: true })).join('')}</div>` : ''}
     ${sameName.length ? `<h2>Gleicher Name, andere Sets</h2><div class="grid small" id="samename">${sameName.map((x) => tileHTML(x, { markMissing: true })).join('')}</div>` : ''}
   `;
@@ -835,6 +846,7 @@ async function viewCard(game, id, token) {
     return e;
   };
   $('[data-add]').onclick = () => openEntrySheet(c, null);
+  $('[data-binder]').onclick = () => addToBinder(c);
   $('[data-deluser]')?.addEventListener('click', async () => {
     if (owned.has(key)) return toast('Erst die Exemplare dieser Karte aus der Sammlung löschen.');
     if (!(await confirmDialog('Karte entfernen?', 'Die selbst angelegte Karte wird aus der Datenbank entfernt.', 'Entfernen', true))) return;
@@ -1465,6 +1477,7 @@ async function viewMore() {
   const item = (href, ic, t, sub) => `<a class="item" href="${href}">${ic}<div class="grow"><div class="title">${t}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>${icon.chev}</a>`;
   view.innerHTML = `
     <div class="list">
+      ${item('#/binders', icon.binder, 'Binder', 'Lieblingskarten, teuerste Karten und Slabs schön präsentiert')}
       ${item('#/wish', icon.heart, 'Wunschliste', `${wishSet.size} Karten`)}
       ${item('#/stats', icon.chart, 'Statistik & Wert', 'Wert, Top-Karten, Set-Fortschritt')}
       ${item('#/dupes', icon.refresh, 'Doppelte Karten', 'Tauschliste – alles, was du mehrfach hast')}

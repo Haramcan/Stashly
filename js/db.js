@@ -216,6 +216,7 @@ export async function exportAll({ withPhotos = true } = {}) {
     wish: await db.all('wish'),
     settings: { ...(await settings()), aiKey: '' },
     userCatalog: (await db.get('kv', 'userCatalog')) || null,
+    binders: (await db.get('kv', 'binders')) || null,
     photos: {},
   };
   if (withPhotos) {
@@ -239,6 +240,11 @@ export async function importAll(data, { replace = false } = {}) {
   }
   await db.putMany('entries', data.entries || []);
   await db.putMany('wish', data.wish || []);
+  if (Array.isArray(data.binders)) {
+    const cur = replace ? [] : ((await db.get('kv', 'binders')) || []);
+    for (const b of data.binders) if (!cur.some((x) => x.id === b.id)) cur.push(b);
+    await db.put('kv', cur, 'binders');
+  }
   if (data.userCatalog) {
     const cur = (await db.get('kv', 'userCatalog')) || { sets: [], cards: [] };
     const ids = new Set(cur.cards.map((c) => c.game + ':' + c.id));
