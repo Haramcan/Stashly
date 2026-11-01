@@ -25,15 +25,24 @@ const EMBEDDED = (() => { try { return window.self !== window.top; } catch { ret
 const navStack = [];
 let memHash = '#/home';
 function curHash() { return EMBEDDED ? memHash : (location.hash || '#/home'); }
+// Richtung der letzten Navigation: 'forward' (neue Seite), 'replace' (Seite tauschen), 'back' (zurück)
+let navDir = 'forward';
+let navPending = false;
+let curDir = 'forward';
+const scrollPos = new Map();
+let renderedHash = null;
 function go(h) {
+  navDir = 'forward'; navPending = true;
   if (EMBEDDED) { if (h !== memHash) { navStack.push(memHash); memHash = h; } route(); }
   else if (location.hash === h) route();
   else location.hash = h;
 }
 function replaceRoute(h) {
+  navDir = 'replace'; navPending = true;
   if (EMBEDDED) { memHash = h; route(); } else location.replace(h);
 }
 function goBack() {
+  navDir = 'back'; navPending = true;
   if (EMBEDDED) { memHash = navStack.pop() || '#/home'; route(); }
   else if (history.length > 1) history.back();
   else location.hash = '#/home';
@@ -53,7 +62,12 @@ async function init() {
   cat.setPkLang(S.pkLang);
   await refreshOwned();
   store.onChange(async () => { await refreshOwned(); });
-  window.addEventListener('hashchange', () => { if (!EMBEDDED) route(); });
+  window.addEventListener('hashchange', () => {
+    if (EMBEDDED) return;
+    if (!navPending) navDir = 'back'; // Zurück-Taste des Browsers / Android
+    route();
+  });
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   backBtn.onclick = () => goBack();
   // Links auf App-Seiten selbst abfangen (funktioniert auch eingebettet)
   document.addEventListener('click', (e) => {
@@ -157,6 +171,9 @@ const routes = [
 async function route() {
   const h = curHash();
   const token = ++routeToken;
+  curDir = navDir;
+  navDir = 'forward'; navPending = false;
+  if (renderedHash && renderedHash !== h) scrollPos.set(renderedHash, window.scrollY);
   if (h !== '#/scan') {
     lastHash = h;
     // Zurück-Taste (Android) schließt offene Fenster und den Scanner
@@ -176,7 +193,13 @@ async function route() {
       console.error(e);
       if (token === routeToken) view.innerHTML = `<div class="empty"><b>Fehler</b>${esc(e.message)}</div>`;
     }
-    if (token === routeToken && !h.startsWith('#/card')) window.scrollTo(0, 0);
+    if (token === routeToken) {
+      renderedHash = h;
+      const y = curDir === 'back' ? scrollPos.get(h) : 0;
+      // Zurück: dorthin, wo du warst. Sonst oben anfangen.
+      window.scrollTo(0, y || 0);
+      if (y) requestAnimationFrame(() => window.scrollTo(0, y));
+    }
     return;
   }
   replaceRoute('#/home');
@@ -316,6 +339,7 @@ async function viewHome(_, token) {
    ====================================================================== */
 const colState = { game: 'all', q: '', sort: 'new', graded: false, view: null };
 async function viewCollection(_, token) {
+  if (curDir !== 'back') colState.q = '';
   setTitle('Sammlung');
   colState.view = colState.view || S.collectionView || 'grid';
   const vbtn = addAction(colState.view === 'grid' ? icon.list : icon.grid, async () => {
@@ -422,6 +446,7 @@ async function openEntry(id) {
 const catState = { game: null, q: '', serie: 'all' };
 async function viewCatalog(game, token) {
   game = game && GAMES[game] ? game : catState.game && activeGames().includes(catState.game) ? catState.game : activeGames()[0];
+  if (curDir !== 'back' || catState.game !== game) catState.q = '';
   catState.game = game;
   setTitle('Sets');
   addAction(icon.search, () => go('#/search'), 'Karten suchen');
@@ -443,16 +468,20 @@ async function viewCatalog(game, token) {
   const draw = () => {
     const q = norm(catState.q);
     const mine = $('#onlyMine').checked;
-    let list = sets.slice();
-    if (game === 'pokemon') list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.order - a.order);
-    else list.sort((a, b) => a.order - b.order);
+    let list = sets.slice().sort(setSort(game));
     if (q) list = list.filter((s) => norm(`${s.id} ${s.abbr || ''} ${s.name} ${s.nameDe || ''} ${s.serie || ''}`).includes(q));
     const rows = list.map((s) => ({ s, have: progress(s) })).filter((x) => !mine || x.have);
     const groups = new Map();
     for (const r of rows) {
-      const g = game === 'pokemon' ? r.s.serie : r.s.kind === 'booster' ? 'Booster' : r.s.kind === 'starter' ? 'Starter Decks' : 'Promos & Sonstiges';
+      const g = setGroup(game, r.s);
       if (!groups.has(g)) groups.set(g, []);
       groups.get(g).push(r);
+    }
+    if (game !== 'pokemon') {
+      const order = GROUP_ORDER[game];
+      const sorted = [...groups.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+      groups.clear();
+      sorted.forEach(([k, v]) => groups.set(k, v));
     }
     $('#slist').innerHTML = rows.length ? [...groups.entries()].map(([g, rs]) => `
       <h2>${esc(g)}</h2>
@@ -471,6 +500,25 @@ async function viewCatalog(game, token) {
   $('#sq').oninput = debounce((e) => { catState.q = e.target.value; draw(); }, 150);
   $('#onlyMine').onchange = draw;
   draw();
+}
+
+/* Reihenfolge der Sets: FB01, FB02, … dann Manga/Story Booster, Starter Decks, Promos */
+const GROUP_ORDER = {
+  dbfw: ['Booster Packs', 'Manga Booster', 'Story Booster', 'Starter Decks', 'Promos & Event-Packs', 'Weitere Sets'],
+  op: ['Booster Packs', 'Extra Booster', 'Premium Booster', 'Starter Decks', 'Promos & Sonstiges', 'Weitere Sets'],
+};
+function setGroup(game, s) {
+  if (game === 'pokemon') return s.serie || 'Weitere Sets';
+  const p = (/^[A-Z]+/.exec(s.id) || [''])[0];
+  if (game === 'dbfw') {
+    return { FB: 'Booster Packs', SB: 'Manga Booster', ST: 'Story Booster', FS: 'Starter Decks', PROMO: 'Promos & Event-Packs', REP: 'Promos & Event-Packs' }[p] || 'Weitere Sets';
+  }
+  return { OP: 'Booster Packs', EB: 'Extra Booster', PRB: 'Premium Booster', ST: 'Starter Decks', P: 'Promos & Sonstiges', OTHER: 'Promos & Sonstiges' }[p] || 'Weitere Sets';
+}
+function setSort(game) {
+  if (game === 'pokemon') return (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.order - b.order;
+  const key = (s) => { const n = /\d+/.exec(s.id); return [(/^[A-Z]+/.exec(s.id) || [''])[0], n ? +n[0] : 0]; };
+  return (a, b) => { const ka = key(a), kb = key(b); return ka[0].localeCompare(kb[0]) || ka[1] - kb[1] || a.id.localeCompare(b.id); };
 }
 
 const setState = { filter: 'all', view: null, tick: false, sort: 'no' };
@@ -1567,6 +1615,7 @@ async function viewHelp() {
    Service Worker / Updates
    ====================================================================== */
 function registerSW() {
+  if (EMBEDDED) return; // eingebettet (Vorschau) gibt es keinen Offline-Modus
   try { registerSWInner(); } catch (e) { console.warn('Offline-Modus nicht verfügbar:', e); }
 }
 function registerSWInner() {
