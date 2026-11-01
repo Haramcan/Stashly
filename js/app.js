@@ -86,7 +86,8 @@ function applyTheme() {
   let t = S.theme;
   if (t === 'auto') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   document.documentElement.dataset.theme = t;
-  $('meta[name="theme-color"]').content = t === 'light' ? '#f3f5fa' : '#0f1420';
+  const tc = $('meta[name="theme-color"]');
+  if (tc) tc.content = t === 'light' ? '#f3f5fa' : '#0f1420';
 }
 
 async function refreshOwned() {

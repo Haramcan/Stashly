@@ -27,7 +27,8 @@ export function getWorker(onProgress) {
         corePath: base,
         langPath: base.replace(/\/$/, ''),
         gzip: true,
-        workerBlobURL: false,
+        // eingebettet (fremder Rahmen) darf ein Worker nur über eine blob:-Adresse starten
+        workerBlobURL: (() => { try { return window.self !== window.top; } catch { return true; } })(),
         logger: (m) => progressCb?.(m),
       });
       await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' });
@@ -38,6 +39,43 @@ export function getWorker(onProgress) {
 }
 
 /* ---------- Bildaufbereitung ---------- */
+/**
+ * Schneidet ein Foto auf die Karte zu: alles, was der Randfarbe (Tisch, Hintergrund) ähnelt, fällt weg.
+ * Gibt das Original zurück, wenn keine plausible Karte gefunden wird.
+ */
+export function autoCrop(src) {
+  const W = 160, H = Math.max(1, Math.round((src.height / src.width) * W));
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(src, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data;
+  const px = (i, j) => { const k = (j * W + i) * 4; return [d[k], d[k + 1], d[k + 2]]; };
+  const border = [];
+  for (let i = 0; i < W; i++) { border.push(px(i, 0), px(i, H - 1)); }
+  for (let j = 0; j < H; j++) { border.push(px(0, j), px(W - 1, j)); }
+  const med = [0, 1, 2].map((ch) => border.map((p) => p[ch]).sort((a, b) => a - b)[border.length >> 1]);
+  const diff = (p) => Math.abs(p[0] - med[0]) + Math.abs(p[1] - med[1]) + Math.abs(p[2] - med[2]);
+  const rows = new Array(H).fill(0), cols = new Array(W).fill(0);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (diff(px(i, j)) > 60) { rows[j]++; cols[i]++; }
+  const first = (arr, n, th) => arr.findIndex((v) => v > th * n);
+  const last = (arr, n, th) => arr.length - 1 - [...arr].reverse().findIndex((v) => v > th * n);
+  const top = first(rows, W, 0.35), bottom = last(rows, W, 0.35), left = first(cols, H, 0.35), right = last(cols, H, 0.35);
+  if (top < 0 || left < 0 || bottom <= top || right <= left) return src;
+  const bw = right - left + 1, bh = bottom - top + 1;
+  if (bw * bh < 0.2 * W * H) return src;
+  const ratio = bw / bh;
+  if (ratio < 0.5 || ratio > 0.95) return src; // keine Hochkant-Karte erkannt
+  if (bw > 0.97 * W && bh > 0.97 * H) return src; // schon formatfüllend
+  const s = src.width / W, pad = 0.015;
+  const sx = Math.max(0, (left - bw * pad) * s), sy = Math.max(0, (top - bh * pad) * s);
+  const sw = Math.min(src.width - sx, bw * (1 + 2 * pad) * s), sh = Math.min(src.height - sy, bh * (1 + 2 * pad) * s);
+  const out = document.createElement('canvas');
+  out.width = Math.round(sw); out.height = Math.round(sh);
+  out.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  return out;
+}
+
 function region(src, x, y, w, h, targetW, { gray = true, contrast = true } = {}) {
   const sw = src.width, sh = src.height;
   const rx = Math.max(0, Math.round(x * sw)), ry = Math.max(0, Math.round(y * sh));
@@ -83,6 +121,7 @@ const DIGIT = { O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', T: '7', S: '5'
 const LETTER = { 0: 'O', 8: 'B', 5: 'S', 1: 'I', 6: 'G', 2: 'Z' };
 const toDigits = (s) => s.split('').map((ch) => DIGIT[ch] ?? ch).join('');
 const toLetters = (s) => s.split('').map((ch) => LETTER[ch] ?? ch).join('');
+const CONFUSE = { 0: '869', 1: '74', 2: '7', 3: '89', 4: '1', 5: '68', 6: '580', 7: '12', 8: '93605', 9: '830' };
 const PREFIXES = ['FB', 'FS', 'SB', 'ST', 'FP', 'E', 'OP', 'EB', 'PRB', 'P'];
 
 export function findBandaiCodes(text) {
@@ -172,7 +211,7 @@ function nameScore(card, tokens) {
     if (!nt.length) continue;
     let s = 0, wsum = 0;
     for (const w of nt) {
-      const weight = SUFFIX.has(w) ? 0.35 : 1;
+      const weight = SUFFIX.has(w) ? 0.35 : w.length <= 2 || STOP.has(w) ? 0.15 : 1;
       let b = 0;
       for (const t of tokens) {
         if (t.length < 3 && t !== w) continue;
@@ -228,7 +267,7 @@ export async function recognize(canvas, { games = cat.GAME_IDS, full = null, onS
 
   onStep('Lese Kartennummer …');
   texts.push(await ocr(region(canvas, 0, 0.8, 1, 0.2, 1500, { gray: false })));
-  let res = match(texts.join('\n'), games);
+  let res = match(texts.join('\n'), games, texts[0]);
   const hasCode = () => res.candidates.some((x) => x.score >= 70);
   // Kartennummern sind winzig: Ecken vergrößert lesen (rechts: Bandai/alte Pokémon, links: neue Pokémon)
   const extra = [
@@ -242,17 +281,17 @@ export async function recognize(canvas, { games = cat.GAME_IDS, full = null, onS
     if (hasCode()) break;
     onStep('Lese Kartennummer (Detail) …');
     texts.push(await ocr(region(canvas, ...r), psm));
-    res = match(texts.join('\n'), games);
+    res = match(texts.join('\n'), games, texts[0]);
   }
   const confident = () => res.candidates.length && res.candidates[0].score >= 90 &&
     (res.candidates.length === 1 || res.candidates[0].score - res.candidates[1].score >= 15);
   onStep('Lese Kartenname …');
   texts.push(await ocr(region(canvas, 0, 0, 1, 0.2, 1400)));
-  res = match(texts.join('\n'), games);
+  res = match(texts.join('\n'), games, texts[0]);
   if (!confident()) {
     onStep('Lese ganze Karte …');
     texts.push(await ocr(region(full || canvas, 0, 0, 1, 1, 1300, { contrast: false })));
-    res = match(texts.join('\n'), games);
+    res = match(texts.join('\n'), games, texts[0]);
   }
   if (full && !res.grading) {
     // Grading-Etikett liegt oft außerhalb des Rahmens
@@ -263,8 +302,9 @@ export async function recognize(canvas, { games = cat.GAME_IDS, full = null, onS
   return res;
 }
 
-export function match(text, games = cat.GAME_IDS) {
+export function match(text, games = cat.GAME_IDS, primary = '') {
   const tokens = words(text).filter((w) => !STOP.has(w));
+  const ptokens = primary ? words(primary).filter((w) => !STOP.has(w)) : [];
   const found = new Map(); // id -> {card, score, why}
   const add = (card, score, why) => {
     const k = card.game + ':' + card.id;
@@ -279,6 +319,18 @@ export function match(text, games = cat.GAME_IDS) {
       for (const c of list) {
         const ns = nameScore(c, tokens);
         add(c, 80 + ns * 20 - (c.p ? 2 : 0), `Nummer ${code}`);
+      }
+      // Eine Ziffer falsch gelesen (8/9/3 …)? Nachbarn nur zählen, wenn der Name klar passt
+      const m = /^(.*-)(\d+)$/.exec(code);
+      if (!m) continue;
+      for (let i = 0; i < m[2].length; i++) {
+        for (const alt of CONFUSE[m[2][i]] || []) {
+          const code2 = m[1] + m[2].slice(0, i) + alt + m[2].slice(i + 1);
+          for (const c of cat.lookupNo(g, code2)) {
+            const ns = nameScore(c, tokens);
+            add(c, ns >= 0.85 ? 62 + ns * 34 - (c.p ? 2 : 0) : 30 + ns * 10, `Nummer ${code2}?`);
+          }
+        }
       }
     }
   }
@@ -328,7 +380,10 @@ export function match(text, games = cat.GAME_IDS) {
     }
     const ranked = [...hits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
     // Ziffernfolgen im Text: Teilnummern bestätigen den Namen (z. B. "120613" enthält "120" von OP01-120)
-    const seqs = (text.toUpperCase().match(/[0-9OQDILSZB]{1,8}/g) || []).map(toDigits).filter((x) => /^\d+$/.test(x));
+    // nur Folgen mit echten Ziffern – sonst würden Wörter wie "SOLID" zu "50110"
+    const seqs = (text.toUpperCase().match(/[0-9OQDILSZB]{1,8}/g) || [])
+      .filter((x) => (x.match(/\d/g) || []).length >= Math.max(1, x.length - 1))
+      .map(toDigits).filter((x) => /^\d+$/.test(x));
     for (const [c] of ranked) {
       const ns = nameScore(c, tokens);
       if (ns < 0.75) continue;
@@ -341,10 +396,14 @@ export function match(text, games = cat.GAME_IDS) {
       } else {
         const suf = c.no.split('-').pop();
         const pre = c.no.split('-')[0].replace(/\D/g, '');
-        if (suf.length === 3 && seqs.some((q) => q.includes(suf))) { bonus = 22; why = 'Name + Nummer'; }
-        else if (suf.length === 2 && seqs.some((q) => q.startsWith(suf))) { bonus = 12; why = 'Name + Nummer?'; }
-        if (bonus && pre && seqs.some((q) => q.includes(pre))) bonus += 6;
+        if (pre && seqs.some((q) => q.includes(pre + suf))) { bonus = 28; why = 'Name + Nummer'; }
+        else if (suf.length === 3 && seqs.some((q) => q === suf || (q.startsWith(suf) && q.length <= 6))) { bonus = 18; why = 'Name + Nummer'; }
+        else if (suf.length === 2 && seqs.some((q) => q === suf)) { bonus = 8; why = 'Name + Nummer?'; }
       }
+      // Name steht im Namensfeld (unterer Streifen) und nicht nur irgendwo im Effekttext
+      const nameTokens = norm(c.name).split(' ').filter((w) => w.length > 2 && !STOP.has(w)).length;
+      if (ns >= 0.85) bonus += Math.min(12, (nameTokens - 1) * 5);
+      if (ptokens.length && nameScore(c, ptokens) >= 0.85) bonus += 8 + Math.min(6, nameTokens * 2);
       add(c, ns * 55 + bonus - (c.p ? 1 : 0), why);
     }
   }

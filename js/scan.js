@@ -1,7 +1,7 @@
 // Scanner: Kamera, Foto auswerten, Treffer anzeigen.
 import { esc, sheet, toast, icon, pickFile, loadBitmap, compressImage } from './util.js';
 import * as cat from './catalog.js';
-import { recognize, getWorker, findGrading, nameHints } from './recognize.js';
+import { recognize, getWorker, findGrading, nameHints, autoCrop } from './recognize.js';
 import { aiRecognize } from './ai.js';
 
 let active = null;
@@ -156,6 +156,9 @@ export async function openScanner(ctx) {
       canvas.getContext('2d').drawImage(src, 0, 0);
     }
     if (!fromCam) {
+      // Foto aus der Galerie: auf die Karte zuschneiden, das ganze Bild bleibt für Grading-Etiketten
+      full = canvas;
+      canvas = autoCrop(canvas);
       still.hidden = false;
       still.width = canvas.width; still.height = canvas.height;
       still.getContext('2d').drawImage(canvas, 0, 0);
