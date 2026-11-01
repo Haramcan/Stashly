@@ -14,6 +14,7 @@ Alles läuft offline auf deinem Handy, deine Sammlung bleibt auf deinem Gerät.
 - **Scanner**: Karte fotografieren → die App liest die Kartennummer (z. B. `FB01-139`, `OP05-119`, `025/165`) und den Namen und schlägt die Karte vor. Komplett offline, ohne KI-Dienst.
 - **Serien-Scan**: Karte für Karte auslösen, „+1“ legt sie ab, die Kamera ist sofort wieder bereit – ideal nach dem Booster-Öffnen.
 - **Sets mit Fortschritt**: Jedes Set als Kartenraster oder **Binder-Ansicht** (9er-Seiten), fehlende Karten grau. Filter: habe ich / fehlen / Parallel / Seltenheit.
+- **Schnell-Eingabe per Liste**: Nummern eintippen oder einfügen (`FB01-139`, `3x OP01-120`, `MEW 6`) – alle auf einmal hinzufügen.
 - **Abhak-Modus**: Im Set einfach Karten antippen = +1. So ist ein ganzes Set in Minuten eingetragen.
 - **Gegradete Karten**: PSA, BGS, CGC, TAG, SGC, ACE … mit Note, Zertifikatsnummer und eigenem Foto vom Slab. Der Scanner erkennt Grading-Etiketten oft automatisch.
 - **Pro Exemplar**: Anzahl, Version (Holo, Reverse, Foil …), Zustand (MT bis PO), Sprache, Kaufpreis, Kaufdatum, Wert, Lagerort (Binder, Box …), Notizen, eigene Fotos.
