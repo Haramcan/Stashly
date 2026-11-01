@@ -171,7 +171,7 @@ function index(game, d) {
       byOfficial.get(k).push(s);
     }
   }
-  return { game, sets, setById, cards, byId, bySet, byNo, byOfficial, imgBase: d.imgBase, updated: d.updated };
+  return { game, sets, setById, cards, byId, bySet, byNo, byOfficial, imgBase: d.imgBase, updated: d.updated, sprites: d.sprites || null, spriteBase: d.spriteBase || '' };
 }
 
 export function getCard(game, id) {
@@ -229,6 +229,22 @@ export function cardImg(c, size = 'low') {
   }
   return c.img ? d.imgBase + c.img : '';
 }
+/**
+ * Sammelbilder (ein Bild pro Set mit allen Karten im Raster). Werden nur genutzt, wenn die
+ * Datenbank sie mitbringt – z. B. in der Vorschau, wo Bilder von fremden Seiten gesperrt sind.
+ */
+export function spriteHTML(c) {
+  const d = c && cache[c.game];
+  if (!d?.sprites || !c.spr) return '';
+  const [si, i] = c.spr;
+  const sh = d.sprites[si];
+  if (!sh) return '';
+  const col = i % sh.cols, row = Math.floor(i / sh.cols);
+  const px = sh.cols > 1 ? (col / (sh.cols - 1)) * 100 : 0;
+  const py = sh.rows > 1 ? (row / (sh.rows - 1)) * 100 : 0;
+  return `<div class="spr" role="img" style="background-image:url('${d.spriteBase}${sh.file}');background-size:${sh.cols * 100}% ${sh.rows * 100}%;background-position:${px.toFixed(4)}% ${py.toFixed(4)}%"></div>`;
+}
+
 /** Ersatzbild, falls die bevorzugte Sprache fehlt */
 export function cardImgFallback(c, size = 'low') {
   if (c?.game === 'pokemon' && c.img && c.de && pkLang === 'de') return `${cache.pokemon.imgBase}${c.img}/${size}.webp`;

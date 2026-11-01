@@ -213,7 +213,7 @@ export async function openScanner(ctx) {
             Diese Nummer ist noch nicht in der Datenbank – vermutlich ein neues Set. Leg sie einfach an, dann ist sie ab sofort dabei.
             <button class="btn primary block" data-newcard style="margin-top:10px">${icon.plus} ${esc(unknown[0].no)} neu anlegen</button></div>` : ''}
           ${chosen ? `<div class="match-best">
-            <div class="pic">${cat.cardImg(chosen, 'high') ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(chosen, 'high'))}" data-fb="${esc(cat.cardImgFallback(chosen, 'high'))}" alt="">` : chosen.photo ? `<img data-photo="${esc(chosen.photo)}" alt="">` : ''}</div>
+            <div class="pic">${cat.spriteHTML(chosen) || (cat.cardImg(chosen, 'high') ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(chosen, 'high'))}" data-fb="${esc(cat.cardImgFallback(chosen, 'high'))}" alt="">` : chosen.photo ? `<img data-photo="${esc(chosen.photo)}" alt="">` : '')}</div>
             <div class="stack">
               <div><span class="badge game-${chosen.game}">${esc(cat.GAMES[chosen.game].short)}</span> ${conf}</div>
               <div style="font-size:18px;font-weight:800;line-height:1.2">${esc(cat.cardName(chosen))}</div>

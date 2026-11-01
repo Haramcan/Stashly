@@ -223,7 +223,8 @@ function tileHTML(c, o = {}) {
   if (!c) return '';
   const q = o.qty ?? ownedQty(c);
   const isMissing = o.markMissing && !q;
-  const src = c.custom ? '' : cat.cardImg(c, 'low');
+  const spr = c.custom ? '' : cat.spriteHTML(c);
+  const src = c.custom || spr ? '' : cat.cardImg(c, 'low');
   const fb = c.custom ? '' : cat.cardImgFallback(c, 'low');
   const name = c.custom ? c.name : cat.cardName(c);
   const flags = [];
@@ -231,8 +232,8 @@ function tileHTML(c, o = {}) {
   if (c.par) flags.push('<span class="badge" style="background:#7c4dff;color:#fff">P</span>');
   return `<div class="tcg ${isMissing ? 'missing' : ''} ${o.selected ? 'selected' : ''}" data-key="${esc(keyOf(c))}" ${o.idx != null ? `data-idx="${o.idx}"` : ''} ${o.entry ? `data-entry="${esc(o.entry)}"` : ''}>
     <div class="pic">
-      ${src ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" ${fb ? `data-fb="${esc(fb)}"` : ''} alt="${esc(name)}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : ''}
-      <div class="ph" ${src || c.photo ? 'hidden' : ''}>${esc(name)}<br>${esc(c.no || '')}</div>
+      ${spr || (src ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" ${fb ? `data-fb="${esc(fb)}"` : ''} alt="${esc(name)}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : '')}
+      <div class="ph" ${spr || src || c.photo ? 'hidden' : ''}>${esc(name)}<br>${esc(c.no || '')}</div>
       ${q ? `<span class="qty">${q}×</span>` : ''}
       ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
       ${o.showWish !== false && wishSet.has(keyOf(c)) ? `<span class="wishmark">${icon.heart}</span>` : ''}
@@ -405,7 +406,7 @@ async function viewCollection(_, token) {
         const s = !c.custom ? cat.getSet(c.game, c.set) : null;
         const v = entryValue(e);
         return `<div class="item" data-entry="${esc(e.id)}" data-key="${esc(keyOf(c))}">
-          ${c.custom ? `<img class="set-logo" style="width:40px;height:56px;object-fit:cover;border-radius:5px" data-photo="${esc(c.photo || '')}" alt="">` : `<img loading="lazy" referrerpolicy="no-referrer" style="width:40px;height:56px;object-fit:cover;border-radius:5px;flex:none" src="${esc(cat.cardImg(c))}" data-fb="${esc(cat.cardImgFallback(c))}" alt="">`}
+          ${c.custom ? `<img class="set-logo" style="width:40px;height:56px;object-fit:cover;border-radius:5px" data-photo="${esc(c.photo || '')}" alt="">` : cat.spriteHTML(c) ? `<div style="width:40px;height:56px;border-radius:5px;overflow:hidden;flex:none;position:relative">${cat.spriteHTML(c)}</div>` : `<img loading="lazy" referrerpolicy="no-referrer" style="width:40px;height:56px;object-fit:cover;border-radius:5px;flex:none" src="${esc(cat.cardImg(c))}" data-fb="${esc(cat.cardImgFallback(c))}" alt="">`}
           <div class="grow"><div class="title">${e.qty > 1 ? `${e.qty}× ` : ''}${esc(cat.cardName(c) || c.name)}</div>
           <div class="sub">${esc(c.custom ? c.no : cat.cardNo(c))} · ${esc(s ? cat.setCode(s) : (c.set || 'Eigene'))} · ${esc(e.condition || '')} ${esc(e.lang || '')}${e.graded ? ` · <b>${esc(e.grader)} ${esc(e.grade)}</b>` : ''}</div></div>
           <b class="small">${v ? money(v) : ''}</b>
@@ -728,7 +729,7 @@ async function viewCard(game, id, token) {
     <div class="detail-top">
       <div>
         <div class="detail-img" id="dimg">
-          <div class="pic">${cat.cardImg(c, 'high') ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(c, 'high'))}" data-fb="${esc(cat.cardImgFallback(c, 'high'))}" alt="${esc(cat.cardName(c))}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : `<div class="ph" style="position:absolute;inset:0;display:grid;place-items:center">${esc(c.no)}</div>`}</div>
+          <div class="pic">${cat.spriteHTML(c) || (cat.cardImg(c, 'high') ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(c, 'high'))}" data-fb="${esc(cat.cardImgFallback(c, 'high'))}" alt="${esc(cat.cardName(c))}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : `<div class="ph" style="position:absolute;inset:0;display:grid;place-items:center">${esc(c.no)}</div>`)}</div>
           <div class="holo"></div>
         </div>
         <div class="row" style="justify-content:space-between;margin-top:10px">
@@ -1286,7 +1287,7 @@ async function viewBulk(_, token) {
     const ok = rows.filter((r) => r.pick);
     $('#bulkRes').innerHTML = rows.length ? `
       <div class="list">${rows.map((r, i) => `<div class="item" data-i="${i}">
-        ${r.pick ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(r.pick))}" data-fb="${esc(cat.cardImgFallback(r.pick))}" style="width:38px;height:53px;object-fit:cover;border-radius:4px;flex:none" alt="">` : `<span style="width:38px;text-align:center;color:var(--bad)">✕</span>`}
+        ${r.pick && cat.spriteHTML(r.pick) ? `<div style="width:38px;height:53px;border-radius:4px;overflow:hidden;flex:none;position:relative">${cat.spriteHTML(r.pick)}</div>` : r.pick ? `<img referrerpolicy="no-referrer" src="${esc(cat.cardImg(r.pick))}" data-fb="${esc(cat.cardImgFallback(r.pick))}" style="width:38px;height:53px;object-fit:cover;border-radius:4px;flex:none" alt="">` : `<span style="width:38px;text-align:center;color:var(--bad)">✕</span>`}
         <div class="grow"><div class="title">${r.pick ? `${r.qty}× ${esc(cat.cardName(r.pick))}` : esc(r.line)}</div>
         <div class="sub">${r.pick ? `${esc(cat.cardNo(r.pick))} · ${esc(cat.setCode(cat.getSet(r.pick.game, r.pick.set)))} · ${esc(GAMES[r.pick.game].short)}` : (r.hidden ? `${GAMES[r.hidden].short} ist ausgeblendet – unter <a href="#/settings" style="text-decoration:underline">Einstellungen</a> einblenden` : cat.gameFromNo(r.line.replace(/^\d+\s*[x×*]\s*/i, '').trim()) ? '<b style="color:var(--accent)">nicht in der Datenbank – antippen zum Anlegen</b>' : 'nicht gefunden')}${r.cards.length > 1 ? ` · <b style="color:var(--warn)">${r.cards.length} Möglichkeiten – antippen</b>` : ''}</div></div>
       </div>`).join('')}</div>
