@@ -322,6 +322,77 @@ def build_pokemon():
     return {"sets": sets, "cards": cards, "imgBase": "https://assets.tcgdex.net/"}
 
 
+# ---------------------------------------------------------------- Cardmarket
+CM = "https://downloads.s3.cardmarket.com/productCatalog/"
+
+
+def cm_price(g):
+    """Cardmarket-Preis einer Karte: Trend, sonst Durchschnitt, sonst günstigstes Angebot."""
+    for k in ("trend", "avg30", "avg7", "avg1", "avg"):
+        v = g.get(k)
+        if v:
+            return round(float(v), 2), k
+    v = g.get("low")
+    return (round(float(v), 2), "low") if v else (None, None)
+
+
+def add_cardmarket(cards, game_id):
+    """Ordnet die öffentlichen Cardmarket-Preise (tägliche Preisliste) den Karten zu.
+    Produkte heißen z. B. "Son Goku (FB02-001) [Fusion World]"; mehrere Produkte mit
+    derselben Nummer sind die Versionen (Normal, Parallel …) in der Reihenfolge, in der
+    Cardmarket sie angelegt hat."""
+    try:
+        prods = get_json(CM + f"productList/products_singles_{game_id}.json")["products"]
+        guide = get_json(CM + f"priceGuide/price_guide_{game_id}.json")
+    except Exception as e:  # noqa: BLE001
+        print("  (Cardmarket nicht geladen:", e, ")")
+        return None
+    prices = {x["idProduct"]: x for x in guide["priceGuides"]}
+    by_no = {}
+    for x in prods:
+        m = re.search(r"\(([A-Z]+\d*-\d+)\)", x["name"])
+        if m:
+            by_no.setdefault(m.group(1), []).append(x)
+    # Haupt-Erweiterung je Set-Kürzel (FB02 -> die Cardmarket-Erweiterung mit den meisten FB02-Karten)
+    count = {}
+    for no, ps in by_no.items():
+        pre = no.split("-")[0]
+        for x in ps:
+            count.setdefault(pre, {}).setdefault(x["idExpansion"], 0)
+            count[pre][x["idExpansion"]] += 1
+    main_exp = {pre: max(c, key=c.get) for pre, c in count.items()}
+
+    def vkey(c):
+        m = re.match(r"([a-z]+)(\d*)", c.get("p") or "")
+        return (0, 0) if not m else ({"p": 1, "r": 2}.get(m.group(1), 3), int(m.group(2) or 0))
+
+    mine = {}
+    for c in cards:
+        mine.setdefault(c["no"], []).append(c)
+    n = 0
+    for no, cs in mine.items():
+        ps = by_no.get(no, [])
+        if not ps:
+            continue
+        pre = no.split("-")[0]
+        me = main_exp.get(pre)
+        ps_main = sorted([x for x in ps if x["idExpansion"] == me], key=lambda x: x["idProduct"])
+        ps_other = sorted([x for x in ps if x["idExpansion"] != me], key=lambda x: (x.get("dateAdded") or "", x["idProduct"]))
+        in_main = lambda c: c["set"].replace("-", "") == pre or (pre in c["set"].replace("-", ""))  # noqa: E731
+        cs_main = sorted([c for c in cs if in_main(c)], key=vkey)
+        cs_other = sorted([c for c in cs if not in_main(c)], key=vkey)
+        for c, x in list(zip(cs_main, ps_main)) + list(zip(cs_other, ps_other)):
+            v, kind = cm_price(prices.get(x["idProduct"], {}))
+            c["cm"] = x["idProduct"]
+            if v is not None:
+                c["eur"] = v
+                if kind == "low":
+                    c["eurLow"] = 1
+                n += 1
+    print(f"  Cardmarket-Preise für {n} Karten (Stand {guide.get('createdAt', '')[:10]})")
+    return guide.get("createdAt", "")[:10]
+
+
 def main():
     want = sys.argv[1:] or ["dbfw", "op", "pokemon"]
     builders = {"dbfw": build_dbfw, "op": build_op, "pokemon": build_pokemon}
@@ -330,6 +401,8 @@ def main():
     for g in want:
         d = builders[g]()
         d["updated"] = date.today().isoformat()
+        if g in ("dbfw", "op"):
+            d["pricesDate"] = add_cardmarket(d["cards"], 13 if g == "dbfw" else 18) or ""
         write(f"{g}.json", d)
         meta[g] = {"updated": d["updated"], "sets": len(d["sets"]), "cards": len(d["cards"])}
     write("meta.json", meta)

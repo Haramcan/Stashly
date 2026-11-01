@@ -171,7 +171,7 @@ function index(game, d) {
       byOfficial.get(k).push(s);
     }
   }
-  return { game, sets, setById, cards, byId, bySet, byNo, byOfficial, imgBase: d.imgBase, updated: d.updated, sprites: d.sprites || null, spriteBase: d.spriteBase || '' };
+  return { game, sets, setById, cards, byId, bySet, byNo, byOfficial, imgBase: d.imgBase, updated: d.updated, pricesDate: d.pricesDate || '', sprites: d.sprites || null, spriteBase: d.spriteBase || '' };
 }
 
 export function getCard(game, id) {
@@ -324,6 +324,8 @@ export function lookupNo(game, no) {
   if (!d) return [];
   return d.byNo.get(game === 'pokemon' ? normLocal(no) : normNo(no)) || [];
 }
+
+export function pricesDate(game) { return cache[game]?.pricesDate || ''; }
 
 export function dataInfo() {
   return GAME_IDS.map((g) => ({ game: g, loaded: !!cache[g], sets: cache[g]?.sets.length || 0, cards: cache[g]?.cards.length || 0, updated: cache[g]?.updated }));

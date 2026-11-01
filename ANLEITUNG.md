@@ -15,7 +15,8 @@ Alles läuft offline auf deinem Handy, deine Sammlung bleibt auf deinem Gerät.
 - **Serien-Scan**: Karte für Karte auslösen, „+1“ legt sie ab, die Kamera ist sofort wieder bereit – ideal nach dem Booster-Öffnen.
 - **Sets mit Fortschritt**: Jedes Set als Kartenraster oder **Binder-Ansicht** (9er-Seiten), fehlende Karten grau. Filter: habe ich / fehlen / Parallel / Seltenheit.
 - **Schnell-Eingabe per Liste**: Nummern eintippen oder einfügen (`FB01-139`, `3x OP01-120`, `MEW 6`) – alle auf einmal hinzufügen.
-- **Abhak-Modus**: Im Set einfach Karten antippen = +1. So ist ein ganzes Set in Minuten eingetragen.
+- **Cardmarket-Preise** (Dragon Ball, One Piece): unter jeder Karte im Set, oben der Wert deiner Karten. Aktualisieren mit `python3 tools/build_data.py`.
+- **Abhak-Modus**: Im Set einfach Karten antippen = +1, das „−“ an der Karte nimmt eine wieder raus, „Rückgängig“ nimmt die letzten Schritte zurück. So ist ein ganzes Set in Minuten eingetragen.
 - **Gegradete Karten**: PSA, BGS, CGC, TAG, SGC, ACE … mit Note, Zertifikatsnummer und eigenem Foto vom Slab. Der Scanner erkennt Grading-Etiketten oft automatisch.
 - **Pro Exemplar**: Anzahl, Version (Holo, Reverse, Foil …), Zustand (MT bis PO), Sprache, Kaufpreis, Kaufdatum, Wert, Lagerort (Binder, Box …), Notizen, eigene Fotos.
 - **Preise**: One Piece mit TCGplayer-Marktpreisen, Pokémon-Preise von Cardmarket per Knopfdruck (online), dazu Links zu Cardmarket und „eBay verkauft“ für jede Karte.

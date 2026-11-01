@@ -118,6 +118,8 @@ async function refreshOwned() {
 }
 
 const keyOf = (c) => `${c.game}:${c.id}`;
+/** Preis als Text, "ab …" wenn Cardmarket nur Angebote, aber keine Verkäufe kennt */
+const priceText = (c) => { const v = marketPrice(c); return v == null ? '' : (c.eurLow && !priceMap.get(keyOf(c))?.eur ? 'ab ' : '') + money(v); };
 /** Eingeblendete Spiele (Einstellungen) */
 const activeGames = () => { const a = GAME_IDS.filter((g) => (S.games || GAME_IDS).includes(g)); return a.length ? a : ['dbfw']; };
 /** Lädt die eingeblendeten Spiele und alle, von denen du Karten hast */
@@ -134,6 +136,7 @@ function marketPrice(c) {
   if (!c) return null;
   const p = priceMap.get(keyOf(c));
   if (p?.eur != null) return p.eur;
+  if (c.eur != null) return c.eur;
   if (c.usd != null) return Math.round(c.usd * S.usdRate * 100) / 100;
   if (p?.usd != null) return Math.round(p.usd * S.usdRate * 100) / 100;
   return null;
@@ -235,10 +238,11 @@ function tileHTML(c, o = {}) {
       ${spr || (src ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" ${fb ? `data-fb="${esc(fb)}"` : ''} alt="${esc(name)}">` : c.photo ? `<img data-photo="${esc(c.photo)}" alt="">` : '')}
       <div class="ph" ${spr || src || c.photo ? 'hidden' : ''}>${esc(name)}<br>${esc(c.no || '')}</div>
       ${q ? `<span class="qty">${q}×</span>` : ''}
+      ${o.minus && q ? `<button class="minus" data-minus aria-label="Eine entfernen">−</button>` : ''}
       ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
       ${o.showWish !== false && wishSet.has(keyOf(c)) ? `<span class="wishmark">${icon.heart}</span>` : ''}
     </div>
-    ${o.caption === false ? '' : `<div class="cap"><div class="n">${esc(name)}</div><div class="c">${esc(o.sub ?? (c.custom ? (c.no || 'Eigene Karte') : cat.cardNo(c)))}</div></div>`}
+    ${o.caption === false ? '' : `<div class="cap"><div class="n">${esc(name)}</div><div class="c">${esc(o.sub ?? (c.custom ? (c.no || 'Eigene Karte') : cat.cardNo(c)))}</div>${o.price ? `<div class="pr">${esc(o.price)}</div>` : ''}</div>`}
   </div>`;
 }
 async function hydratePhotos(root) {
@@ -558,12 +562,16 @@ async function viewSet(game, setId, token) {
     const base = cards.filter((c) => !c.par);
     const haveBase = base.filter((c) => owned.has(keyOf(c))).length;
     const val = cards.reduce((a, c) => a + (owned.has(keyOf(c)) ? (marketPrice(c) || 0) * ownedQty(c) : 0), 0);
+    const priced = cards.filter((c) => marketPrice(c) != null);
+    const missVal = cards.reduce((a, c) => a + (!owned.has(keyOf(c)) && !c.par ? marketPrice(c) || 0 : 0), 0);
+    const pd = cat.pricesDate(game);
     return `<div class="panel game-${game}" style="--gc:${GAMES[game].color}">
       <div class="row">${logo ? `<img src="${esc(logo)}" data-fb="${esc(cat.setLogoFallback(s))}" referrerpolicy="no-referrer" style="height:44px;max-width:120px;object-fit:contain" alt="">` : `<span class="set-code" style="width:64px;height:44px">${esc(cat.setCode(s))}</span>`}
         <div class="grow" style="flex:1;min-width:0"><b>${have} / ${cards.length}</b> <span class="muted small">gesammelt (${pct(have, cards.length)} %)</span>
         ${hasPar ? `<div class="muted small">Ohne Parallels: ${haveBase} / ${base.length}</div>` : ''}
         ${s.date ? `<div class="muted small">Erschienen ${fmtDate(s.date)}${s.official ? ` · ${s.official} offizielle Karten` : ''}</div>` : ''}
-        ${val ? `<div class="small">Wert deiner Karten: <b>${money(val)}</b></div>` : ''}</div></div>
+        ${priced.length ? `<div class="small" style="margin-top:4px">Wert deiner Karten: <b style="font-size:16px">${money(val)}</b></div>
+          <div class="muted tiny">Fehlende Karten ohne Parallels: ca. ${money(missVal)}${pd ? ` · Cardmarket, Stand ${fmtDate(pd)}` : ''}</div>` : ''}</div></div>
       <div class="progress" style="margin-top:10px"><i style="width:${pct(have, cards.length)}%"></i></div>
     </div>`;
   };
@@ -576,9 +584,18 @@ async function viewSet(game, setId, token) {
       <span class="spacer"></span>
       <label class="row small" style="font-weight:650"><span class="switch"><input type="checkbox" id="tick" ${setState.tick ? 'checked' : ''}><span></span></span> Abhak-Modus</label>
     </div>
-    ${setState.tick ? '<div class="notice" id="tickhint" style="margin-bottom:10px">Abhak-Modus: Antippen = +1 in die Sammlung. Gedrückt halten = Karte öffnen.</div>' : ''}
+    ${setState.tick ? `<div class="notice row" id="tickhint" style="margin-bottom:10px;align-items:center"><span style="flex:1">Tippen: +1 · <b>−</b>: eine entfernen · Halten: Karte öffnen</span>
+      <button class="btn sm" id="tickUndo" disabled>↶ Rückgängig</button></div>` : ''}
     <div id="sgrid"></div>`;
   $('#shead').innerHTML = head();
+  const tile = (c) => tileHTML(c, { markMissing: true, sub: `${cat.cardNo(c)}${c.r ? ' · ' + c.r : ''}`, price: priceText(c), minus: setState.tick });
+  // Verlauf im Abhak-Modus: jede Aktion lässt sich zurücknehmen, auch mehrere hintereinander
+  const tickHistory = [];
+  const updUndo = () => { const b = $('#tickUndo'); if (b) { b.disabled = !tickHistory.length; b.textContent = tickHistory.length ? `↶ Rückgängig (${tickHistory.length})` : '↶ Rückgängig'; } };
+  const refreshTile = (c) => {
+    $('#shead').innerHTML = head();
+    $$('#sgrid .tcg').filter((t) => t.dataset.key === keyOf(c)).forEach((t) => { t.outerHTML = setState.view === 'binder' ? tileHTML(c, { markMissing: true, minus: setState.tick }) : tile(c); });
+  };
   const draw = () => {
     const f = setState.filter;
     const list = cards.filter((c) => {
@@ -596,9 +613,9 @@ async function viewSet(game, setId, token) {
     if (setState.view === 'binder') {
       const pages = [];
       for (let i = 0; i < list.length; i += 9) pages.push(list.slice(i, i + 9));
-      el.innerHTML = `<div class="binder">${pages.map((p, pi) => `<div><div class="muted tiny" style="margin:0 4px 4px">Seite ${pi + 1}</div><div class="binder-page">${p.map((c) => tileHTML(c, { markMissing: true })).join('')}${'<div class="slot-empty"></div>'.repeat(9 - p.length)}</div></div>`).join('')}</div>`;
+      el.innerHTML = `<div class="binder">${pages.map((p, pi) => `<div><div class="muted tiny" style="margin:0 4px 4px">Seite ${pi + 1}</div><div class="binder-page">${p.map((c) => tileHTML(c, { markMissing: true, minus: setState.tick })).join('')}${'<div class="slot-empty"></div>'.repeat(9 - p.length)}</div></div>`).join('')}</div>`;
     } else {
-      el.innerHTML = `<div class="grid">${list.map((c) => tileHTML(c, { markMissing: true, sub: `${cat.cardNo(c)}${c.r ? ' · ' + c.r : ''}` })).join('')}</div>`;
+      el.innerHTML = `<div class="grid">${list.map((c) => tile(c)).join('')}</div>`;
     }
     hydratePhotos(el);
   };
@@ -614,23 +631,32 @@ async function viewSet(game, setId, token) {
   });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => grid.addEventListener(ev, () => clearTimeout(pressTimer)));
   grid.addEventListener('contextmenu', (e) => { if (setState.tick) e.preventDefault(); });
-  bindTiles(grid, async (t) => {
+  bindTiles(grid, async (t, ev) => {
     if (longPressed) return;
     if (!setState.tick) return openCardKey(t.dataset.key);
     const c = cat.getCard(game, t.dataset.key.slice(game.length + 1));
-    const e = await quickAdd(c, { silent: true });
+    if (ev.target.closest('[data-minus]')) {
+      const r = await removeOne(c);
+      if (!r) return;
+      tickHistory.push({ type: 'remove', r, c });
+      navigator.vibrate?.(8);
+      refreshTile(c); updUndo();
+      toast(`${cat.cardName(c)} → ${ownedQty(c)}×`);
+      return;
+    }
+    const r = await quickAdd(c, { silent: true });
+    tickHistory.push({ type: 'add', r, c });
     navigator.vibrate?.(12);
-    $('#shead').innerHTML = head();
-    const q = ownedQty(c);
-    t.classList.remove('missing');
-    const pic = t.querySelector('.pic');
-    let qe = pic.querySelector('.qty');
-    if (!qe) { qe = document.createElement('span'); qe.className = 'qty'; pic.appendChild(qe); }
-    qe.textContent = `${q}×`;
-    toast(`${cat.cardName(c)} → ${q}×`, {
-      action: 'Rückgängig',
-      onAction: async () => { await undoQuickAdd(e); draw(); $('#shead').innerHTML = head(); },
-    });
+    refreshTile(c); updUndo();
+    toast(`${cat.cardName(c)} → ${ownedQty(c)}×${priceText(c) ? ' · ' + priceText(c) : ''}`);
+  });
+  $('#tickUndo')?.addEventListener('click', async () => {
+    const h = tickHistory.pop();
+    if (!h) return;
+    if (h.type === 'add') await undoQuickAdd(h.r);
+    else await restoreRemoved(h.r);
+    refreshTile(h.c); updUndo();
+    toast(`Rückgängig: ${cat.cardName(h.c)} → ${ownedQty(h.c)}×`);
   });
   $$('#sfilter [data-f]').forEach((b) => (b.onclick = () => { setState.filter = b.dataset.f; $$('#sfilter [data-f]').forEach((x) => x.classList.toggle('on', x === b)); draw(); }));
   $('#ssort').onchange = (e) => { setState.sort = e.target.value; sortCards(); draw(); };
@@ -758,6 +784,7 @@ async function viewCard(game, id, token) {
         <div>
           <h3>Preis</h3>
           <div class="price-box" id="pbox">
+            ${c.eur != null ? `<div class="stat"><b>${c.eurLow ? 'ab ' : ''}${money(c.eur)}</b><span>${c.eurLow ? 'Cardmarket, günstigstes Angebot' : 'Cardmarket Trend'}${cat.pricesDate(c.game) ? ` · ${fmtDate(cat.pricesDate(c.game))}` : ''}</span></div>` : ''}
             ${c.usd != null ? `<div class="stat"><b>$${c.usd.toFixed(2)}</b><span>TCGplayer Markt (≈ ${money(c.usd * S.usdRate)})</span></div>` : ''}
             ${p?.trend != null ? `<div class="stat"><b>${money(p.trend)}</b><span>Cardmarket Trend</span></div>` : ''}
             ${p?.avg30 != null ? `<div class="stat"><b>${money(p.avg30)}</b><span>Ø 30 Tage</span></div>` : ''}
@@ -913,6 +940,28 @@ async function quickAdd(c, extra = {}) {
   }
   return { e, created };
 }
+/** Ein Exemplar entfernen: bevorzugt die zuletzt geänderte, nicht gegradete Zeile */
+async function removeOne(c) {
+  const list = (await store.entries()).filter((e) => e.key === keyOf(c));
+  if (!list.length) return null;
+  list.sort((a, b) => (a.graded ? 1 : 0) - (b.graded ? 1 : 0) || (b.updated || 0) - (a.updated || 0));
+  const e = list[0];
+  const before = { ...e, photos: [...(e.photos || [])] };
+  if ((e.qty || 1) > 1) { e.qty -= 1; await store.saveEntry(e); }
+  else {
+    // Fotos nicht löschen, damit "Rückgängig" alles wiederherstellen kann
+    const keep = { ...e, photos: [] };
+    await store.saveEntry(keep);
+    await store.deleteEntry(e.id);
+  }
+  await refreshOwned();
+  return before;
+}
+async function restoreRemoved(before) {
+  await store.saveEntry({ ...before });
+  await refreshOwned();
+}
+
 async function undoQuickAdd(r) {
   if (!r) return;
   if (r.created) await store.deleteEntry(r.e.id);
@@ -1605,7 +1654,7 @@ async function viewHelp() {
     <p class="muted small">Oben kannst du das Spiel festlegen. Das macht die Erkennung schneller und genauer.</p></div>
     <div class="panel"><h3>✅ Abhak-Modus</h3><p class="muted small">Unter <b>Sets</b> ein Set öffnen und „Abhak-Modus“ einschalten: Jedes Antippen zählt die Karte +1. So trägst du ganze Sets in Minuten ein. Gedrückt halten öffnet die Karte.</p></div>
     <div class="panel"><h3>🏅 Gegradete Karten</h3><p class="muted small">Beim Hinzufügen „Gegradet“ einschalten und Firma (PSA, BGS, CGC, TAG …), Note und Zertifikatsnummer eintragen. Der Scanner erkennt PSA/BGS/CGC-Etiketten oft automatisch. Mache am besten ein eigenes Foto vom Slab.</p></div>
-    <div class="panel"><h3>💶 Preise</h3><p class="muted small">One Piece: TCGplayer-Marktpreise sind eingebaut (Stand des Updates). Pokémon: Cardmarket-Preise per Knopf online laden. Dragon Ball: eigenen Wert eintragen – über „Cardmarket“ und „eBay verkauft“ siehst du aktuelle Preise.</p></div>
+    <div class="panel"><h3>💶 Preise</h3><p class="muted small">One Piece: TCGplayer-Marktpreise sind eingebaut (Stand des Updates). Pokémon: Cardmarket-Preise per Knopf online laden. Dragon Ball und One Piece: Cardmarket-Preise sind eingebaut (Stand des letzten Updates) und werden im Set unter jeder Karte angezeigt.</p></div>
     <div class="panel"><h3>✨ KI-Erkennung</h3><p class="muted small">Optional: Mit einem eigenen Claude API-Schlüssel (Einstellungen) erkennt die App auch mehrere Karten auf einem Foto (z. B. eine ganze Binder-Seite) und Grading-Slabs.</p></div>
     <div class="panel"><h3>📴 Offline</h3><p class="muted small">Nach dem ersten Start funktioniert alles ohne Internet. Kartenbilder werden beim Anschauen gespeichert. Über „Set › Bilder für offline speichern“ holst du ein ganzes Set auf einmal.</p></div>
     <div class="panel"><h3>💾 Sicherung</h3><p class="muted small">Deine Daten liegen nur auf dem Gerät. Unter Mehr › Sicherung regelmäßig eine Sicherung erstellen und in der Cloud ablegen.</p></div>

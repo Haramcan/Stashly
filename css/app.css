@@ -181,6 +181,9 @@ h3 { font-size: 15px; margin: 0 0 6px; }
 .tcg .cap .n { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tcg .cap .c { color: var(--muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid.small .cap { display: none; }
+.tcg .cap .pr { font-size: 11.5px; font-weight: 800; color: var(--ok); font-variant-numeric: tabular-nums; }
+.tcg .minus { position: absolute; left: 4px; bottom: 4px; width: 30px; height: 30px; border-radius: 9px; border: 0; background: rgba(10,14,24,.82); color: #fff; font-size: 20px; font-weight: 800; line-height: 1; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.tcg .minus:active { background: var(--bad); }
 .tcg.selected .pic { outline: 3px solid var(--accent); outline-offset: 1px; }
 
 /* Binder */
