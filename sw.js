@@ -1,7 +1,7 @@
 /* TCG Sammlung – Service Worker: macht die App offline nutzbar.
    Die Liste zwischen den Markierungen wird von tools/build_sw.py erzeugt. */
 // BEGIN-GENERATED
-const VERSION = '8b9938a278cd';
+const VERSION = 'da55f23c8392';
 const ASSETS = [
   './',
   './css/app.css',

@@ -87,6 +87,16 @@ const isShiny = (c, v) => (v || 0) >= 10 || ['SCR', 'SEC', 'L', 'SR', 'SP', 'SPR
 
 function cardHTML(c, e, opts = {}) {
   const v = e ? A.entryValue(e) / (e.qty || 1) : A.marketPrice(c);
+  if (e?.graded && e.photos?.length && !opts.drawn) {
+    // echtes Foto vom Slab (Vorderseite, optional Rückseite)
+    return `<div class="slab-photo ${isShiny(c, v) ? 'shiny' : ''}" data-sides="${e.photos.length > 1 ? 2 : 1}">
+      <div class="sp-inner">
+        <div class="sp-face sp-front"><img data-photo="${esc(e.photos[0])}" alt="Vorderseite"><i class="shine"></i></div>
+        ${e.photos[1] ? `<div class="sp-face sp-back"><img data-photo="${esc(e.photos[1])}" alt="Rückseite"></div>` : ''}
+      </div>
+      <span class="sp-badge">${esc(e.grader || '')} ${esc(e.grade || '')}</span>
+    </div>`;
+  }
   if (e?.graded) {
     const [bg, fg] = GRADER_STYLE[e.grader] || ['#333', '#fff'];
     const word = GRADE_WORD[parseFloat(e.grade)] || e.gradeLabel || '';
@@ -259,7 +269,7 @@ export async function viewBinder(id, token) {
       });
       // Glanz folgt dem Finger / der Maus
       spread.addEventListener('pointermove', (e) => {
-        const el = e.target.closest('.sleeved, .slab');
+        const el = e.target.closest('.sleeved, .slab, .slab-photo');
         if (!el) return;
         const r = el.getBoundingClientRect();
         el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
@@ -284,13 +294,14 @@ function showcase(s) {
       ${e?.graded ? `<span>${esc(e.grader)} ${esc(e.grade)}${e.cert ? ' · Zertifikat ' + esc(e.cert) : ''}</span>` : ''}
       ${v ? `<span class="sc-price">${money(v)}</span>` : ''}
       <div class="row" style="justify-content:center;margin-top:10px">
+        ${e?.graded && e.photos?.length > 1 ? '<button class="btn sm" data-flip>↻ Umdrehen</button>' : ''}
         ${c.custom ? '' : `<button class="btn sm" data-open>Karte öffnen</button>`}
         <button class="btn sm" data-close>Schließen</button>
       </div>
     </div>`;
   document.body.appendChild(z);
   A.hydratePhotos(z);
-  const card = z.querySelector('.sleeved, .slab');
+  const card = z.querySelector('.sleeved, .slab, .slab-photo');
   const tilt = (cx, cy) => {
     const r = card.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (cx - r.left) / r.width)), y = Math.min(1, Math.max(0, (cy - r.top) / r.height));
@@ -304,6 +315,7 @@ function showcase(s) {
   const close = () => { z.remove(); document.removeEventListener('keydown', onKey); };
   document.addEventListener('keydown', onKey);
   z.querySelector('[data-close]').onclick = close;
+  z.querySelector('[data-flip]')?.addEventListener('click', () => card.classList.toggle('flipped'));
   z.querySelector('[data-open]')?.addEventListener('click', () => { close(); A.openCardKey(`${c.game}:${c.id}`); });
   z.addEventListener('click', (ev) => { if (ev.target === z || ev.target.classList.contains('sc-stage')) close(); });
 }

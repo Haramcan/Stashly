@@ -1012,7 +1012,8 @@ async function openEntrySheet(c, e, prefill = {}) {
         <label class="row" style="font-weight:700"><span>Gegradet</span><span class="switch"><input type="checkbox" name="graded" ${e.graded ? 'checked' : ''}><span></span></span></label>
       </div>
       <div id="gradeBox" ${e.graded ? '' : 'hidden'} class="panel" style="display:grid;gap:12px">
-        <div class="field"><span class="lbl">Grading-Firma</span>${seg('grader', GRADERS.map((g) => [g, g]), e.grader || 'PSA')}</div>
+        <div class="field"><span class="lbl">Grading-Firma</span>${seg('grader', GRADERS.map((g) => [g, g]), !e.grader ? 'PSA' : GRADERS.includes(e.grader) ? e.grader : 'Sonstige')}
+          <input name="graderOther" id="graderOther" value="${esc(e.grader && !GRADERS.includes(e.grader) ? e.grader : '')}" placeholder="Name der Firma, z. B. deine deutsche Grading-Firma" style="margin-top:8px" ${e.grader && !GRADERS.includes(e.grader) ? '' : 'hidden'}></div>
         <div class="two">
           <div class="field"><label>Note</label><select name="grade">${['', '10', '9.5', '9', '8.5', '8', '7.5', '7', '6.5', '6', '5.5', '5', '4.5', '4', '3.5', '3', '2.5', '2', '1.5', '1', 'Authentic'].map((g) => `<option ${g === String(e.grade) ? 'selected' : ''} value="${g}">${g || '–'}</option>`).join('')}</select></div>
           <div class="field"><label>Zertifikat-Nr.</label><input name="cert" inputmode="numeric" value="${esc(e.cert || '')}"></div>
@@ -1030,7 +1031,8 @@ async function openEntrySheet(c, e, prefill = {}) {
       <div class="field"><label>Aktueller Wert (€/Stk.)</label><input name="value" type="number" step="0.01" inputmode="decimal" value="${esc(e.value ?? '')}" placeholder="${(() => { const mp = c && !c.custom ? marketPrice(c) : null; return mp != null ? 'Marktpreis ' + money(mp) + ' – leer lassen = automatisch' : 'leer = unbekannt'; })()}"></div>
       <div class="field"><label>Lagerort</label><input name="location" list="locs" value="${esc(e.location || '')}" placeholder="z. B. Binder 1, Toploader-Box"><datalist id="locs">${locations.map((l) => `<option value="${esc(l)}">`).join('')}</datalist></div>
       <div class="field"><label>Notizen</label><textarea name="notes" placeholder="z. B. aus Display gezogen, Tausch mit …">${esc(e.notes || '')}</textarea></div>
-      <div class="field"><span class="lbl">Eigene Fotos (z. B. Vorder-/Rückseite, Slab)</span>
+      <div class="field"><span class="lbl">Eigene Fotos – 1. Foto = Vorderseite, 2. Foto = Rückseite</span>
+        <div class="faint tiny" style="margin:-2px 2px 6px">Bei gegradeten Karten zeigt der Binder dein echtes Slab-Foto und lässt sich umdrehen.</div>
         <div class="photos" id="photos"></div></div>
       <div class="${isNew ? '' : 'two'}">
         ${isNew ? '' : `<button type="button" class="btn danger" data-del>${icon.trash} Löschen</button>`}
@@ -1059,6 +1061,7 @@ async function openEntrySheet(c, e, prefill = {}) {
       sg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
     })));
     body.querySelectorAll('[data-step]').forEach((b) => (b.onclick = () => { f.qty.value = Math.max(1, (+f.qty.value || 1) + +b.dataset.step); }));
+    body.querySelectorAll('[data-seg="grader"] button').forEach((b) => b.addEventListener('click', () => { body.querySelector('#graderOther').hidden = b.dataset.v !== 'Sonstige'; if (b.dataset.v === 'Sonstige') body.querySelector('#graderOther').focus(); }));
     f.graded.onchange = () => { body.querySelector('#gradeBox').hidden = !f.graded.checked; body.querySelector('#condBox').hidden = f.graded.checked; };
     body.querySelector('[data-del]')?.addEventListener('click', async () => {
       if (!(await confirmDialog('Exemplar löschen?', 'Dieser Eintrag wird aus deiner Sammlung entfernt.', 'Löschen', true))) return;
@@ -1073,7 +1076,7 @@ async function openEntrySheet(c, e, prefill = {}) {
       const segVal = (n) => body.querySelector(`[data-seg="${n}"] .on`)?.dataset.v;
       e.qty = Math.max(1, parseInt(f.qty.value, 10) || 1);
       e.graded = f.graded.checked;
-      e.grader = e.graded ? segVal('grader') : '';
+      e.grader = e.graded ? (segVal('grader') === 'Sonstige' && f.graderOther.value.trim() ? f.graderOther.value.trim() : segVal('grader')) : '';
       e.grade = e.graded ? f.grade.value : '';
       e.cert = e.graded ? f.cert.value.trim() : '';
       e.gradeLabel = e.graded ? f.gradeLabel.value.trim() : '';
@@ -1666,7 +1669,7 @@ async function viewHelp() {
     <p class="muted small"><b>Serien-Scan</b> (Kisten-Symbol rechts unten): „+1 hinzufügen“ legt die Karte ab und die Kamera ist sofort wieder bereit – ideal nach dem Booster-Öffnen.</p>
     <p class="muted small">Oben kannst du das Spiel festlegen. Das macht die Erkennung schneller und genauer.</p></div>
     <div class="panel"><h3>✅ Abhak-Modus</h3><p class="muted small">Unter <b>Sets</b> ein Set öffnen und „Abhak-Modus“ einschalten: Jedes Antippen zählt die Karte +1. So trägst du ganze Sets in Minuten ein. Gedrückt halten öffnet die Karte.</p></div>
-    <div class="panel"><h3>🏅 Gegradete Karten</h3><p class="muted small">Beim Hinzufügen „Gegradet“ einschalten und Firma (PSA, BGS, CGC, TAG …), Note und Zertifikatsnummer eintragen. Der Scanner erkennt PSA/BGS/CGC-Etiketten oft automatisch. Mache am besten ein eigenes Foto vom Slab.</p></div>
+    <div class="panel"><h3>🏅 Gegradete Karten</h3><p class="muted small">Beim Hinzufügen „Gegradet“ einschalten und Firma (PSA, BGS, CGC, TAG …), Note und Zertifikatsnummer eintragen. Der Scanner erkennt PSA/BGS/CGC-Etiketten oft automatisch. Mach zwei Fotos vom Slab: das 1. Foto ist die Vorderseite, das 2. die Rückseite. Im Binder liegt dann dein echter Slab und lässt sich umdrehen. Firmen, die nicht in der Liste stehen, trägst du unter „Sonstige“ mit Namen ein.</p></div>
     <div class="panel"><h3>💶 Preise</h3><p class="muted small">One Piece: TCGplayer-Marktpreise sind eingebaut (Stand des Updates). Pokémon: Cardmarket-Preise per Knopf online laden. Dragon Ball und One Piece: Cardmarket-Preise sind eingebaut (Stand des letzten Updates) und werden im Set unter jeder Karte angezeigt.</p></div>
     <div class="panel"><h3>✨ KI-Erkennung</h3><p class="muted small">Optional: Mit einem eigenen Claude API-Schlüssel (Einstellungen) erkennt die App auch mehrere Karten auf einem Foto (z. B. eine ganze Binder-Seite) und Grading-Slabs.</p></div>
     <div class="panel"><h3>📴 Offline</h3><p class="muted small">Nach dem ersten Start funktioniert alles ohne Internet. Kartenbilder werden beim Anschauen gespeichert. Über „Set › Bilder für offline speichern“ holst du ein ganzes Set auf einmal.</p></div>

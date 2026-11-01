@@ -419,3 +419,15 @@ body.fullscreen #toastRoot { bottom: calc(150px + var(--safe-b)); }
 .sc-info span { font-size: 13px; color: rgba(255,255,255,.7); }
 .sc-info .sc-price { color: #57e39b; font-weight: 800; font-size: 18px; }
 .showcase .btn { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.2); }
+
+/* echtes Slab-Foto (Vorder- und Rückseite) */
+.slab-photo { --mx: 30%; --my: 20%; position: relative; width: 100%; aspect-ratio: 63 / 103; perspective: 1200px; transition: transform .15s ease-out; }
+.slab-photo .sp-inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.slab-photo.flipped .sp-inner { transform: rotateY(180deg); }
+.slab-photo .sp-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 8px; overflow: hidden; background: #0c0e13; box-shadow: 0 8px 18px rgba(0,0,0,.6); }
+.slab-photo .sp-face img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.slab-photo .sp-back { transform: rotateY(180deg); }
+.slab-photo .sp-badge { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); background: rgba(10,14,24,.88); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; white-space: nowrap; z-index: 2; }
+.pocket:has(.slab-photo) { aspect-ratio: auto; }
+.sc-stage .slab-photo { width: min(72vw, 54vh * 0.61); }
+@media (prefers-reduced-motion: reduce) { .slab-photo .sp-inner { transition: none; } }
