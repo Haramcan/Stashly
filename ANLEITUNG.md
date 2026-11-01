@@ -39,16 +39,14 @@ Erscheint ein neues Set (z. B. FB12), das noch nicht in der Datenbank ist:
 
 Das Set wird automatisch angelegt. Bei Dragon Ball sucht die App dabei selbst nach dem offiziellen Kartenbild, sonst wird dein Foto verwendet. Ab dann wird die Karte beim Scannen sofort erkannt. Das geht auch über **Mehr › Neue Karte in die Datenbank**, über die Suche und die Schnell-Eingabe. Selbst angelegte Karten sind in der Sicherung enthalten.
 
-## 1. App online stellen (einmalig, ca. 5 Minuten)
+## 1. App online stellen (einmalig) – wie bei Stashly über GitHub Pages
 
-Damit das Handy die App installieren kann, muss sie einmal unter einer https-Adresse erreichbar sein. Am einfachsten mit Netlify – genau wie bei Stashly, aber als **neue, eigene Seite**:
+Die App hat ein **eigenes GitHub-Repository**, getrennt von Stashly. GitHub Pages stellt sie kostenlos unter einer festen Adresse bereit:
 
-1. Lade die App von GitHub herunter: Im Repository oben den Branch **`claude/tcg-sammlung`** auswählen, dann **Code › Download ZIP** und die ZIP-Datei entpacken.
-2. Öffne am PC **https://app.netlify.com/drop** (eingeloggt mit deinem Netlify-Konto).
-3. Ziehe den entpackten Ordner (der Ordner, in dem `index.html` liegt) in das Feld.
-   Wichtig: Das legt eine **neue Seite** an. Deine Stashly-Seite bleibt unverändert.
-4. Unter *Site configuration › Change site name* einen Namen vergeben, z. B. `tcg-sammlung-deinname`.
-   **Ändere die Adresse danach nicht mehr**, denn deine Daten gehören fest zu dieser Adresse.
+1. Auf GitHub ein neues Repository anlegen, z. B. **`TCG-Sammlung`**: **Public**, Haken bei **„Add a README file“**.
+2. Claude legt die App auf einem eigenen Branch an und öffnet einen **Pull Request**. Du klickst **„Merge pull request“**.
+3. Einmalig: Im Repository **Settings › Pages** öffnen. Unter *Build and deployment* bei **Source: Deploy from a branch** den Branch **`main`** und den Ordner **`/ (root)`** wählen und **Save** drücken.
+4. Nach etwa einer Minute ist die App erreichbar unter **`https://haramcan.github.io/TCG-Sammlung/`**. **Die Adresse danach nicht mehr ändern**: Deine Daten gehören auf dem Handy fest zu ihr. Benenne das Repository deshalb auch nicht mehr um.
 
 ## 2. Aufs Handy installieren
 
@@ -70,15 +68,12 @@ Kartenbilder werden beim Anschauen automatisch gespeichert. Ein ganzes Set holst
 
 Die Daten liegen nur auf dem Handy. Mach regelmäßig unter **Mehr › Sicherung & Export › Sicherung erstellen** eine Sicherung und speichere sie in iCloud Drive oder Google Drive. Die App erinnert dich, wenn die letzte Sicherung über 30 Tage alt ist.
 
-## 5. Updates und neue Sets
+## 5. Updates
 
-- **Pokémon**: Neue Sets holt die App selbst: **Mehr › Sicherung & Export › Neue Pokémon-Sets online suchen**.
-- **Dragon Ball / One Piece** (und alles andere): Die Datenbank wird mit einem Skript neu von den offiziellen Kartenlisten geladen:
-  ```
-  python3 tools/build_data.py
-  python3 tools/build_sw.py
-  ```
-  Danach den Ordner wieder bei Netlify hochladen (Site › *Deploys* › Ordner hineinziehen). Die App zeigt dann „Neue Version verfügbar“ → **Neu laden**. Deine Sammlung bleibt erhalten.
+Genau wie bei Stashly: Claude arbeitet auf einem eigenen Branch und öffnet einen **Pull Request**. Sobald du ihn auf GitHub **mergst**, veröffentlicht GitHub Pages die neue Version automatisch. Die App auf dem Handy zeigt dann **„Neue Version verfügbar“** → **Neu laden**. Deine Sammlung bleibt dabei erhalten.
+
+- **Pokémon**: Neue Sets holt die App auch selbst: **Mehr › Sicherung & Export › Neue Pokémon-Sets online suchen**.
+- **Dragon Ball / One Piece und Preise**: Die Datenbank wird mit `python3 tools/build_data.py` neu von den offiziellen Kartenlisten und der Cardmarket-Preisliste geladen (das erledigt Claude beim Update).
 
 ## Zum Testen am PC
 

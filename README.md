@@ -6,7 +6,7 @@ Offline-Web-App (PWA) zum Verwalten einer Sammelkarten-Sammlung: **Dragon Ball S
 - Scanner mit Texterkennung im Browser (Tesseract.js, offline) und optionaler KI-Erkennung (Claude API, eigener Schlüssel)
 - Sammlung, Sets mit Fortschritt und Binder-Ansicht, gegradete Karten, Wunsch- und Tauschliste, Statistik, Sicherung, CSV-Export
 
-Keine Build-Schritte, kein Server: Ordner auf einen beliebigen statischen Host (z. B. Netlify Drop) legen.
+Keine Build-Schritte, kein Server: läuft über GitHub Pages (Branch `main`, Ordner `/`). Nach jeder Änderung `python3 tools/build_sw.py` ausführen, damit die App auf dem Handy „Neue Version verfügbar“ meldet.
 Anleitung auf Deutsch: [ANLEITUNG.md](ANLEITUNG.md).
 
 ## Aufbau
