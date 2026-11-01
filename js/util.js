@@ -188,6 +188,13 @@ export function download(name, data, type = 'application/json') {
 
 export async function shareOrDownload(name, data, type) {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
+  // Vorschau auf claude.ai: Datei über die Download-Funktion des Viewers anbieten
+  try {
+    const dl = window.claude?.use ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename: name, data: blob }); return; }
+  } catch (e) {
+    if (e?.code === 'declined') return;
+  }
   try {
     const file = new File([blob], name, { type });
     if (navigator.canShare?.({ files: [file] })) {

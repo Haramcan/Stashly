@@ -15,6 +15,14 @@ let wishSet = new Set();
 let priceMap = new Map();
 let routeToken = 0;
 let lastHash = '#/home';
+let cloud = null;
+function cloudLine() {
+  const st = cloud?.status;
+  if (!st?.active) return '';
+  if (st.error) return `<span style="color:var(--warn)">☁ Cloud-Sicherung gerade nicht möglich (${esc(st.error)}) – wird automatisch erneut versucht.</span>`;
+  if (!st.last) return '☁ Cloud-Sicherung startet …';
+  return `<span style="color:var(--ok)">☁ Automatisch gesichert</span> · ${st.count} Einträge · zuletzt ${new Date(st.last).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+}
 
 /* ======================================================================
    Navigation
@@ -100,6 +108,20 @@ async function init() {
   if (extra) cat.load('pokemon').then(() => cat.mergePokemonExtra(extra)).catch(() => {});
   route();
   registerSW();
+  // Vorschau auf claude.ai: automatische Cloud-Sicherung
+  if (window.claude?.use) {
+    import('./cloud.js').then((cl) => {
+      cloud = cl;
+      cl.onStatus(() => { const el = $('#cloudState'); if (el) el.innerHTML = cloudLine(); });
+      let restored = 0;
+      cl.startCloud({
+        onRestored: async (n) => { restored = n; await refreshOwned(); route(); },
+      }).then((ok) => {
+        if (restored) toast(`☁ ${restored} Einträge aus deiner Cloud-Sicherung wiederhergestellt`, { ms: 6000 });
+        else if (ok) toast('☁ Deine Sammlung wird jetzt automatisch gesichert', { ms: 4000 });
+      });
+    }).catch((e) => console.warn(e));
+  }
   store.requestPersist().catch(() => {});
 }
 
@@ -301,7 +323,8 @@ async function viewHome(_, token) {
       <div class="stat"><b>${money(value)}</b><span>Wert (geschätzt)</span></div>
       <div class="stat"><b>${num(graded)}</b><span>Gegradet</span></div>
     </div>
-    ${backupOld ? `<div class="notice warn" style="margin-top:12px">${S.lastBackup ? 'Deine letzte Sicherung ist über 30 Tage alt.' : 'Du hast noch keine Sicherung deiner Sammlung.'} <a href="#/backup" style="font-weight:700;text-decoration:underline">Jetzt sichern</a></div>` : ''}
+    ${cloud?.status?.active ? `<div class="small muted" id="cloudState" style="margin:10px 2px 0">${cloudLine()}</div>` : ''}
+    ${backupOld && !cloud?.status?.active ? `<div class="notice warn" style="margin-top:12px">${S.lastBackup ? 'Deine letzte Sicherung ist über 30 Tage alt.' : 'Du hast noch keine Sicherung deiner Sammlung.'} <a href="#/backup" style="font-weight:700;text-decoration:underline">Jetzt sichern</a></div>` : ''}
     <h2>Deine Spiele</h2>
     <div class="games">
       ${activeGames().map((g) => {
@@ -1559,6 +1582,8 @@ async function viewBackup() {
   view.innerHTML = `
     <div class="notice ${Date.now() - (S.lastBackup || 0) > 30 * 864e5 && list.length ? 'warn' : ''}">Deine Sammlung liegt nur auf diesem Gerät. Erstelle regelmäßig eine Sicherung und speichere sie z. B. in iCloud Drive oder Google Drive.
       ${S.lastBackup ? `<br><b>Letzte Sicherung: ${fmtDate(S.lastBackup)}</b>` : ''}</div>
+    ${cloud?.status?.active ? `<div class="panel small" style="margin-top:12px"><b>Cloud-Sicherung (Vorschau auf claude.ai)</b><div id="cloudState" style="margin-top:4px">${cloudLine()}</div>
+      <div class="faint tiny" style="margin-top:4px">Sammlung, Wunschliste, Binder und selbst angelegte Karten werden bei jeder Änderung automatisch gespeichert – nur für dich sichtbar. Eigene Fotos bleiben im Browser; sichere sie zusätzlich über „Sicherung erstellen“.</div></div>` : ''}
     <h2>Sicherung</h2>
     <div class="list">
       <div class="item" data-a="backup">${icon.download}<div class="grow"><div class="title">Sicherung erstellen</div><div class="sub">Alle Karten, Wunschliste und Fotos als Datei</div></div></div>
