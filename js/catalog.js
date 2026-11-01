@@ -201,12 +201,14 @@ export function prettySetName(n) {
   // "BOOSTER PACK -AWAKENED PULSE-" -> "Booster Pack – Awakened Pulse"
   if (!n) return '';
   let t = n.replace(/\s*-\s*([^-]+?)\s*-\s*$/, ' – $1').replace(/\s+-([^-]+)-\s*/, ' – $1 ');
-  if (t === t.toUpperCase()) {
+  const letters = t.replace(/[^A-Za-z]/g, '');
+  if (letters && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.8) {
     t = t.toLowerCase().replace(/(^|[\s\-–(/])([a-zäöü])/g, (m, a, b) => a + b.toUpperCase())
       .replace(/\bEx\b/g, 'EX').replace(/\bVol\./g, 'Vol.').replace(/\bOf\b/g, 'of').replace(/\bThe\b(?!^)/g, 'the');
     t = t.charAt(0).toUpperCase() + t.slice(1);
   }
-  return t.trim();
+  // "Booster Pack – Blazing Aura" -> "Blazing Aura" (die Gruppe heißt ohnehin "Booster")
+  return t.replace(/^Booster Pack\s*–\s*/i, '').replace(/[’']S\b/g, '’s').trim();
 }
 export function setCode(s) {
   if (!s) return '';
