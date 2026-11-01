@@ -281,9 +281,11 @@ def build_pokemon():
             })
     # deutsche Namen
     try:
-        de = {c["id"]: c["name"] for c in get_json(TD + "de/cards")}
+        de_cards = get_json(TD + "de/cards")
+        de = {c["id"]: c["name"] for c in de_cards}
+        de_img = {c["id"] for c in de_cards if c.get("image")}
     except Exception:  # noqa: BLE001
-        de = {}
+        de, de_img = {}, set()
     # Seltenheiten
     rar = {}
     for r in get_json(TD + "en/rarities"):
@@ -295,6 +297,8 @@ def build_pokemon():
     for c in cards:
         if de.get(c["id"]) and de[c["id"]] != c["name"]:
             c["nameDe"] = de[c["id"]]
+        if c["id"] in de_img:
+            c["de"] = 1
         if c["id"] in rar and rar[c["id"]] != "None":
             c["r"] = rar[c["id"]]
     sets.sort(key=lambda s: (s["date"] or "9999", s["id"]))

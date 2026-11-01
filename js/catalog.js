@@ -138,14 +138,14 @@ export function cardImg(c, size = 'low') {
   if (c.game === 'pokemon') {
     if (!c.img) return '';
     let p = c.img;
-    if (pkLang === 'de') p = p.replace(/^en\//, 'de/');
+    if (pkLang === 'de' && c.de) p = p.replace(/^en\//, 'de/');
     return `${d.imgBase}${p}/${size}.webp`;
   }
   return d.imgBase + c.img;
 }
 /** Ersatzbild, falls die bevorzugte Sprache fehlt */
 export function cardImgFallback(c, size = 'low') {
-  if (c?.game === 'pokemon' && c.img) return `${cache.pokemon.imgBase}${c.img}/${size}.webp`;
+  if (c?.game === 'pokemon' && c.img && c.de && pkLang === 'de') return `${cache.pokemon.imgBase}${c.img}/${size}.webp`;
   return '';
 }
 export function setLogo(s) {

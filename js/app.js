@@ -13,6 +13,7 @@ let owned = new Map(); // "game:cardId" -> { qty, entries }
 let wishSet = new Set();
 let priceMap = new Map();
 let routeToken = 0;
+let lastHash = '#/home';
 
 /* ======================================================================
    Start
@@ -97,6 +98,7 @@ const routes = [
   [/^#\/scan$/, viewScan, 'scan'],
   [/^#\/wish$/, viewWish, 'more'],
   [/^#\/stats$/, viewStats, 'more'],
+  [/^#\/dupes$/, viewDupes, 'more'],
   [/^#\/more$/, viewMore, 'more'],
   [/^#\/settings$/, viewSettings, 'more'],
   [/^#\/backup$/, viewBackup, 'more'],
@@ -107,6 +109,7 @@ const routes = [
 async function route() {
   const h = location.hash || '#/home';
   const token = ++routeToken;
+  if (h !== '#/scan') lastHash = h;
   for (const [re, fn, tab] of routes) {
     const m = h.match(re);
     if (!m) continue;
@@ -918,7 +921,7 @@ async function viewScan() {
       openCustom: (prefill) => openCustom(prefill),
       tileHTML: (c, o) => tileHTML(c, { ...o, caption: true }),
       ownedQty,
-      onClose: () => { if (location.hash === '#/scan') history.length > 1 ? history.back() : (location.hash = '#/home'); },
+      onClose: () => { if (location.hash === '#/scan') location.replace(lastHash || '#/home'); },
     });
   };
   $('#reopen').onclick = open;
@@ -974,6 +977,42 @@ async function viewWish(_, token) {
     : `<div class="empty">${icon.heart}<b>Wunschliste ist leer</b>Öffne eine Karte und tippe oben auf das Herz – oder setze in einem Set alle fehlenden Karten auf einmal drauf.</div>`;
   const wl = $('#wl');
   if (wl) bindTiles(wl, (t) => openCardKey(t.dataset.key));
+}
+
+/* ======================================================================
+   Doppelte Karten / Tauschliste
+   ====================================================================== */
+async function viewDupes(_, token) {
+  setTitle('Doppelte Karten');
+  await cat.loadAll();
+  if (stale(token)) return;
+  const keep = Math.max(1, parseInt(S.keepCount || 1, 10));
+  const rows = [];
+  for (const [key, o] of owned) {
+    const raw = o.entries.filter((e) => !e.graded).reduce((a, e) => a + (e.qty || 0), 0);
+    if (raw <= keep) continue;
+    const c = cardOf(o.entries[0]);
+    if (c) rows.push({ c, extra: raw - keep });
+  }
+  rows.sort((a, b) => `${a.c.game}${a.c.set}${a.c.no}`.localeCompare(`${b.c.game}${b.c.set}${b.c.no}`, 'de', { numeric: true }));
+  const total = rows.reduce((a, r) => a + r.extra, 0);
+  const val = rows.reduce((a, r) => a + (marketPrice(r.c) || 0) * r.extra, 0);
+  if (rows.length) {
+    addAction(icon.upload, () => {
+      const text = `Tauschliste (${total} Karten):\n` + rows.map((r) => `${r.extra}× ${cat.cardNo(r.c) || r.c.no} ${cat.cardName(r.c) || r.c.name} (${gameInfo(r.c.game).short})`).join('\n');
+      if (navigator.share) navigator.share({ text }).catch(() => {}); else { navigator.clipboard?.writeText(text); toast('Kopiert'); }
+    }, 'Teilen');
+  }
+  view.innerHTML = `
+    <div class="toolbar"><span class="muted small">Behalten pro Karte:</span>
+      <div class="stepper"><button data-k="-1">−</button><input id="keep" value="${keep}" readonly><button data-k="1">+</button></div>
+      <span class="spacer"></span></div>
+    ${rows.length ? `<p class="muted small">${total} Karten zum Tauschen${val ? ` · ca. ${money(val)}` : ''}. Gegradete Karten zählen nicht.</p>
+      <div class="grid" id="dl">${rows.map((r) => tileHTML(r.c, { qty: r.extra, sub: `${r.c.custom ? r.c.no : cat.cardNo(r.c)} · ${r.extra} übrig` })).join('')}</div>`
+    : `<div class="empty">${icon.refresh}<b>Keine doppelten Karten</b>Sobald du eine Karte öfter als ${keep}× hast, erscheint sie hier.</div>`}`;
+  $$('[data-k]').forEach((b) => (b.onclick = async () => { await store.setSetting('keepCount', Math.max(1, keep + +b.dataset.k)); viewDupes(null, routeToken); }));
+  const dl = $('#dl');
+  if (dl) { bindTiles(dl, (t) => openCardKey(t.dataset.key)); hydratePhotos(dl); }
 }
 
 /* ======================================================================
@@ -1038,6 +1077,7 @@ async function viewMore() {
     <div class="list">
       ${item('#/wish', icon.heart, 'Wunschliste', `${wishSet.size} Karten`)}
       ${item('#/stats', icon.chart, 'Statistik & Wert', 'Wert, Top-Karten, Set-Fortschritt')}
+      ${item('#/dupes', icon.refresh, 'Doppelte Karten', 'Tauschliste – alles, was du mehrfach hast')}
       ${item('#/search', icon.search, 'Karten suchen', 'Alle Datenbanken durchsuchen')}
       <div class="item" id="addCustom">${icon.plus}<div class="grow"><div class="title">Eigene Karte anlegen</div><div class="sub">Für Karten, die (noch) nicht in der Datenbank sind</div></div>${icon.chev}</div>
     </div>

@@ -159,6 +159,7 @@ const DEFAULTS = {
   collectionView: 'grid',
   setView: 'grid',
   lastBackup: 0,
+  keepCount: 1,
 };
 let settingsCache = null;
 export async function settings() {
