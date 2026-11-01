@@ -110,7 +110,12 @@ const routes = [
 async function route() {
   const h = location.hash || '#/home';
   const token = ++routeToken;
-  if (h !== '#/scan') lastHash = h;
+  if (h !== '#/scan') {
+    lastHash = h;
+    // Zurück-Taste (Android) schließt offene Fenster und den Scanner
+    $$('.sheet-backdrop').forEach((b) => b.click());
+    $('.scanner [data-close]')?.click();
+  }
   for (const [re, fn, tab] of routes) {
     const m = h.match(re);
     if (!m) continue;
@@ -203,7 +208,7 @@ async function viewHome(_, token) {
     g.value += entryValue(e);
   }
   const recent = [...list].sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 12);
-  const backupOld = list.length && (Date.now() - (S.lastBackup || 0)) > 30 * 864e5;
+  const backupOld = list.length >= 10 && (Date.now() - (S.lastBackup || 0)) > 30 * 864e5;
 
   view.innerHTML = `
     <div class="hero">
@@ -211,7 +216,7 @@ async function viewHome(_, token) {
       <div class="stat"><b>${money(value)}</b><span>Wert (geschätzt)</span></div>
       <div class="stat"><b>${num(graded)}</b><span>Gegradet</span></div>
     </div>
-    ${backupOld ? `<div class="notice warn" style="margin-top:12px">Deine letzte Sicherung ist über 30 Tage alt. <a href="#/backup" style="font-weight:700;text-decoration:underline">Jetzt sichern</a></div>` : ''}
+    ${backupOld ? `<div class="notice warn" style="margin-top:12px">${S.lastBackup ? 'Deine letzte Sicherung ist über 30 Tage alt.' : 'Du hast noch keine Sicherung deiner Sammlung.'} <a href="#/backup" style="font-weight:700;text-decoration:underline">Jetzt sichern</a></div>` : ''}
     <h2>Deine Spiele</h2>
     <div class="games">
       ${GAME_IDS.map((g) => {
@@ -223,6 +228,24 @@ async function viewHome(_, token) {
         </a>`;
       }).join('')}
     </div>
+    ${!list.length ? `<div class="notice" style="margin-top:14px"><b>Willkommen!</b> So startest du:<br>
+      1. Einmal im WLAN den <a href="#/backup" style="text-decoration:underline;font-weight:700">Scanner offline vorbereiten</a>.<br>
+      2. Unten auf den runden Knopf tippen und eine Karte fotografieren – oder unter <b>Sets</b> den Abhak-Modus nutzen.<br>
+      <a href="#/help" style="text-decoration:underline;font-weight:700">Alle Tipps</a></div>` : ''}
+    ${(() => {
+      const prog = [];
+      for (const g of GAME_IDS) {
+        const sids = new Set(list.filter((e) => e.game === g).map((e) => cat.getCard(g, e.cardId)?.set).filter(Boolean));
+        for (const sid of sids) {
+          const cs = cat.setCards(g, sid);
+          const have = cs.filter((c) => owned.has(keyOf(c))).length;
+          if (cs.length) prog.push({ g, s: cat.getSet(g, sid), have, total: cs.length });
+        }
+      }
+      prog.sort((a, b) => b.have / b.total - a.have / a.total);
+      return prog.length ? `<div class="section-head"><h2>Sets in Arbeit</h2><a href="#/stats">Alle</a></div>
+        <div class="list">${prog.slice(0, 4).map((x) => `<a class="item" href="#/set/${x.g}/${encodeURIComponent(x.s.id)}" style="--gc:${GAMES[x.g].color}"><span class="set-code">${esc(cat.setCode(x.s))}</span><div class="grow"><div class="title">${esc(cat.setName(x.s))}</div><div class="progress" style="margin-top:6px"><i style="width:${pct(x.have, x.total)}%"></i></div></div><span class="pct">${x.have}/${x.total}</span></a>`).join('')}</div>` : '';
+    })()}
     <h2>Schnellzugriff</h2>
     <div class="quick">
       <a href="#/scan">${icon.camera}Scannen</a>
