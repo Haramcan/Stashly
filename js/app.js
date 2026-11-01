@@ -16,16 +16,52 @@ let routeToken = 0;
 let lastHash = '#/home';
 
 /* ======================================================================
+   Navigation
+   Normal läuft sie über die Adresse (#/sets …). Eingebettet (z. B. als
+   Vorschau in einem Rahmen) kann die Adresse gesperrt sein – dann merkt
+   sich die App die Seiten selbst.
+   ====================================================================== */
+const EMBEDDED = (() => { try { return window.self !== window.top; } catch { return true; } })();
+const navStack = [];
+let memHash = '#/home';
+function curHash() { return EMBEDDED ? memHash : (location.hash || '#/home'); }
+function go(h) {
+  if (EMBEDDED) { if (h !== memHash) { navStack.push(memHash); memHash = h; } route(); }
+  else if (location.hash === h) route();
+  else location.hash = h;
+}
+function replaceRoute(h) {
+  if (EMBEDDED) { memHash = h; route(); } else location.replace(h);
+}
+function goBack() {
+  if (EMBEDDED) { memHash = navStack.pop() || '#/home'; route(); }
+  else if (history.length > 1) history.back();
+  else location.hash = '#/home';
+}
+
+/* ======================================================================
    Start
    ====================================================================== */
+// Fehler sichtbar machen statt einer "toten" Seite
+window.addEventListener('error', (e) => { if (e.message) toast('Fehler: ' + e.message, { ms: 6000 }); });
+window.addEventListener('unhandledrejection', (e) => toast('Fehler: ' + (e.reason?.message || e.reason), { ms: 6000 }));
+
 async function init() {
   S = await store.settings();
+  if (!store.persistent) setTimeout(() => toast('Hinweis: Dieser Browser erlaubt hier kein Speichern – Einträge gehen beim Schließen verloren.', { ms: 7000 }), 800);
   applyTheme();
   cat.setPkLang(S.pkLang);
   await refreshOwned();
   store.onChange(async () => { await refreshOwned(); });
-  window.addEventListener('hashchange', route);
-  backBtn.onclick = () => (history.length > 1 ? history.back() : (location.hash = '#/home'));
+  window.addEventListener('hashchange', () => { if (!EMBEDDED) route(); });
+  backBtn.onclick = () => goBack();
+  // Links auf App-Seiten selbst abfangen (funktioniert auch eingebettet)
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#/"]');
+    if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    go(a.getAttribute('href'));
+  });
   // Bild-Fallback (z. B. deutsches Pokémon-Bild fehlt -> englisch, sonst Platzhalter)
   document.addEventListener('error', (e) => {
     const img = e.target;
@@ -43,7 +79,7 @@ async function init() {
   if (extra) cat.load('pokemon').then(() => cat.mergePokemonExtra(extra)).catch(() => {});
   route();
   registerSW();
-  store.requestPersist();
+  store.requestPersist().catch(() => {});
 }
 
 function applyTheme() {
@@ -118,7 +154,7 @@ const routes = [
 ];
 
 async function route() {
-  const h = location.hash || '#/home';
+  const h = curHash();
   const token = ++routeToken;
   if (h !== '#/scan') {
     lastHash = h;
@@ -142,7 +178,7 @@ async function route() {
     if (token === routeToken && !h.startsWith('#/card')) window.scrollTo(0, 0);
     return;
   }
-  location.hash = '#/home';
+  replaceRoute('#/home');
 }
 const stale = (t) => t !== undefined && t !== routeToken;
 function setTitle(t) { topActions.innerHTML = ''; titleEl.textContent = t; document.title = t === 'TCG Sammlung' ? t : `${t} – TCG Sammlung`; }
@@ -195,7 +231,7 @@ function bindTiles(root, onTap) {
 }
 function openCardKey(key) {
   const i = key.indexOf(':');
-  location.hash = `#/card/${key.slice(0, i)}/${encodeURIComponent(key.slice(i + 1))}`;
+  go(`#/card/${key.slice(0, i)}/${encodeURIComponent(key.slice(i + 1))}`);
 }
 
 /* ======================================================================
@@ -203,7 +239,7 @@ function openCardKey(key) {
    ====================================================================== */
 async function viewHome(_, token) {
   setTitle('TCG Sammlung');
-  addAction(icon.search, () => (location.hash = '#/search'), 'Suchen');
+  addAction(icon.search, () => go('#/search'), 'Suchen');
   const list = await store.entries();
   await loadNeeded();
   if (stale(token)) return;
@@ -387,7 +423,7 @@ async function viewCatalog(game, token) {
   game = game && GAMES[game] ? game : catState.game && activeGames().includes(catState.game) ? catState.game : activeGames()[0];
   catState.game = game;
   setTitle('Sets');
-  addAction(icon.search, () => (location.hash = '#/search'), 'Karten suchen');
+  addAction(icon.search, () => go('#/search'), 'Karten suchen');
   view.innerHTML = '<div class="loader"><span class="spin"></span>Lade Kartendatenbank …</div>';
   await cat.load(game);
   if (stale(token)) return;
@@ -402,7 +438,7 @@ async function viewCatalog(game, token) {
     <div class="bar" style="margin-top:6px"><div class="search">${icon.search}<input type="search" id="sq" placeholder="Set suchen (Name oder Code) …" value="${esc(catState.q)}"></div></div>
     <div class="toolbar"><label class="row small muted"><span class="switch"><input type="checkbox" id="onlyMine"><span></span></span> Nur Sets mit meinen Karten</label></div>
     <div id="slist"></div>`;
-  $$('#ggames [data-g]').forEach((b) => (b.onclick = () => (location.hash = `#/catalog/${b.dataset.g}`)));
+  $$('#ggames [data-g]').forEach((b) => (b.onclick = () => go(`#/catalog/${b.dataset.g}`)));
   const draw = () => {
     const q = norm(catState.q);
     const mine = $('#onlyMine').checked;
@@ -714,7 +750,7 @@ async function viewCard(game, id, token) {
     img.querySelector('.holo').style.backgroundPosition = `${x * 100}% ${y * 100}%`;
   });
   img.addEventListener('pointerleave', () => { img.classList.remove('tilt'); img.querySelector('.pic').style.transform = ''; });
-  $$('[data-go]').forEach((b) => (b.onclick = () => location.replace(`#/card/${game}/${encodeURIComponent(b.dataset.go)}`)));
+  $$('[data-go]').forEach((b) => (b.onclick = () => replaceRoute(`#/card/${game}/${encodeURIComponent(b.dataset.go)}`)));
   $$('#entries [data-e]').forEach((it) => (it.onclick = () => openEntry(it.dataset.e)));
   $('[data-quick]').onclick = async () => {
     const e = await quickAdd(c);
@@ -728,7 +764,7 @@ async function viewCard(game, id, token) {
     cat.removeUserCard(game, c.id);
     await store.db.put('kv', cat.getUserCatalog(), 'userCatalog');
     toast('Entfernt');
-    location.replace(`#/set/${game}/${encodeURIComponent(c.set)}`);
+    replaceRoute(`#/set/${game}/${encodeURIComponent(c.set)}`);
   });
   $('[data-price]')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
@@ -745,7 +781,7 @@ async function viewCard(game, id, token) {
     x0 = null;
     if (Math.abs(dx) > 70) {
       const t = dx < 0 ? next : prev;
-      if (t) location.replace(`#/card/${game}/${encodeURIComponent(t.id)}`);
+      if (t) replaceRoute(`#/card/${game}/${encodeURIComponent(t.id)}`);
     }
   });
 }
@@ -822,7 +858,7 @@ async function quickAdd(c, extra = {}) {
   if (!extra.silent) {
     toast(`${cat.cardName(c)} hinzugefügt (${ownedQty(c)}×)`, {
       action: 'Rückgängig', vibrate: 15,
-      onAction: async () => { await undoQuickAdd({ e, created }); if (location.hash.startsWith('#/card')) route(); },
+      onAction: async () => { await undoQuickAdd({ e, created }); if (curHash().startsWith('#/card')) route(); },
     });
   }
   return { e, created };
@@ -1081,7 +1117,7 @@ async function viewScan() {
       tileHTML: (c, o) => tileHTML(c, { ...o, caption: true }),
       hydrate: (el) => hydratePhotos(el),
       ownedQty,
-      onClose: () => { if (location.hash === '#/scan') location.replace(lastHash || '#/home'); },
+      onClose: () => { if (curHash() === '#/scan') replaceRoute(lastHash || '#/home'); },
     });
   };
   $('#reopen').onclick = open;
@@ -1530,6 +1566,9 @@ async function viewHelp() {
    Service Worker / Updates
    ====================================================================== */
 function registerSW() {
+  try { registerSWInner(); } catch (e) { console.warn('Offline-Modus nicht verfügbar:', e); }
+}
+function registerSWInner() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
   navigator.serviceWorker.register('sw.js').then((reg) => {
     const ask = (w) => toast('Neue Version verfügbar', { action: 'Neu laden', ms: 15000, onAction: () => w.postMessage('SKIP_WAITING') });
@@ -1546,4 +1585,7 @@ function registerSW() {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
 }
 
-init();
+init().catch((e) => {
+  console.error(e);
+  view.innerHTML = `<div class="empty"><b>Die App konnte nicht starten</b>${esc(e?.message || String(e))}</div>`;
+});

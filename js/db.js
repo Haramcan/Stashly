@@ -46,7 +46,7 @@ function tx(store, mode, fn) {
 
 const req2p = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
-export const db = {
+const idb = {
   all: (store) => tx(store, 'readonly', (s) => req2p(s.getAll())),
   get: (store, key) => tx(store, 'readonly', (s) => req2p(s.get(key))),
   put: (store, val, key) => tx(store, 'readwrite', (s) => req2p(key === undefined ? s.put(val) : s.put(val, key))),
@@ -56,6 +56,39 @@ export const db = {
   byIndex: (store, index, value) => tx(store, 'readonly', (s) => req2p(s.index(index).getAll(value))),
   keys: (store) => tx(store, 'readonly', (s) => req2p(s.getAllKeys())),
 };
+
+// Ersatz, falls der Browser keinen Speicher erlaubt (z. B. privater Modus, eingebettete Vorschau):
+// Die App funktioniert dann, vergisst aber alles beim Schließen.
+const KEYPATH = { entries: 'id', wish: 'key', prices: 'key' };
+const mem = new Map();
+const ms = (store) => { if (!mem.has(store)) mem.set(store, new Map()); return mem.get(store); };
+const memdb = {
+  all: async (store) => [...ms(store).values()],
+  get: async (store, key) => ms(store).get(key),
+  put: async (store, val, key) => { ms(store).set(key === undefined ? val[KEYPATH[store]] : key, val); },
+  del: async (store, key) => { ms(store).delete(key); },
+  clear: async (store) => { ms(store).clear(); },
+  putMany: async (store, vals) => { vals.forEach((v) => ms(store).set(v[KEYPATH[store]], v)); },
+  byIndex: async (store, index, value) => [...ms(store).values()].filter((v) => v[index] === value),
+  keys: async (store) => [...ms(store).keys()],
+};
+
+export let persistent = true;
+let backend = null;
+async function pick() {
+  if (backend) return backend;
+  try {
+    if (!window.indexedDB) throw new Error('kein IndexedDB');
+    await Promise.race([open(), new Promise((_, rej) => setTimeout(() => rej(new Error('IndexedDB antwortet nicht')), 4000))]);
+    backend = idb;
+  } catch (e) {
+    console.warn('Speicher nicht verfügbar, nutze Arbeitsspeicher:', e);
+    persistent = false;
+    backend = memdb;
+  }
+  return backend;
+}
+export const db = Object.fromEntries(Object.keys(idb).map((k) => [k, async (...a) => (await pick())[k](...a)]));
 
 // ---------- Cache im Speicher, damit die Oberfläche flott bleibt ----------
 let entriesCache = null;
